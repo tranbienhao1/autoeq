@@ -42,6 +42,7 @@ var displayFs = 48000;         // cập nhật khi AudioContext chạy
 var aeSolvedFs = null; /* Pha A/C 2026-11-07: fs ma band hien tai duoc giai theo (null = chua giai); initEngine dung de biet co can giai lai khi rate that khac. */
 
 function $(id){ return document.getElementById(id); }
+function clampN(v, lo, hi){ return Math.max(lo, Math.min(hi, v)); }
 function fmtDb(v, d){ v = parseFloat(v); if(!isFinite(v)) return "−∞"; return (v>0?"+":"") + v.toFixed(d==null?2:d); } /* Pha C 2026-11-05: parseFloat truoc isFinite — isFinite(null)===true keo null xuong toFixed gay crash (lab 1451: notch.depth=null nem TypeError tu syncPsyUI) */
 function fmtFreq(f){ f=Math.round(f); return f>=1000 ? (Math.round(f/10)/100)+" kHz" : f+" Hz"; }
 /* Số Hz đầy đủ, không viết tắt kHz — dùng trên đầu thẻ band để người dùng

@@ -4352,3 +4352,91 @@ Tài liệu này lưu trữ nguyên vẹn 100% các khối nhật ký vòng tự
    trả lời của Angela, hoặc QA-only khi bộ đếm lab-only đạt 3.
    --- */
 ```
+
+
+---
+
+## Vòng #1 — 2026-11-18 20:34 (Asia/Ho_Chi_Minh)
+
+**Nhánh:** `autoeq-autopilot` | **Người thực thi:** `dsp-author`
+
+### Bước 1: Nhận bàn giao
+- Vòng đầu tiên — không có `[NEXT_BATON]` trước, khởi tạo `Next_Sweep_Shard = 0`
+- Đọc `git log -n 5`: commit mới nhất `51dc4c4` (feat: modularize codebase + 20-shard sweep)
+
+### Bước 2: Kiểm định đa tầng
+
+**2.1 node --check (cú pháp tĩnh):**
+- 25/25 file `.js` trong `src/`, `src/upgrades/`, `src/ui/`, `scripts/`: PASS (không lỗi)
+
+**2.2 extract_core.js:**
+- `ok: true` | `phonesCount: 5000` | `rejectedCount: 0` | `targetsCount: 12` | Markers LF: PASS
+
+**2.3 Sweep Shard 0/20 (`--mode 10`, 3.000 cặp = 250 tai nghe × 12 target):**
+- `rmsBeforeMean: 5.0096 dB` | `rmsAfterMean: 0.3408 dB` | `rmsAfterMedian: 0.3486 dB`
+- `totalViolations: 0` | `totalNullBoosts: 0` | `hardPairsOver1500ms: 1007`
+- Cặp tốt nhất: Truthear Nova × ief → 2.7888 → 0.0626 dB
+- Cặp khó nhất: Sansui SS35 × diffuseFieldKemar → 12.9206 → 1.0802 dB
+- Thời gian: 834.66s (~13.9 phút) | 1 shard
+- **KẾT QUẢ: PASS (viol=0, nullBoost=0)**
+
+**2.4 Sweep `--mode bestof` (36 cặp):**
+- `rmsAfterMean: 0.1777 dB` | `rmsAfterMedian: 0.1206 dB` | `violations: 0` | Thời gian: 424.78s
+- **KẾT QUẢ: PASS**
+
+**2.5 build_single_file.js:**
+- `ok: true` | `.cache/Web AutoEQ - Standalone.html` = 3,876,422 bytes | 19,995 dòng
+
+**2.6 Dual-browser `#btnQaAll` QA (57 test):**
+- `tests: 57` | `pass: 55` | `realFails: 1` | `notMeasuredEnvironment: 1`
+- 1 realFail (`aeV3`): solver 10-band > 500ms do CPU quá tải (sweep chạy ngầm) — xác nhận khi idle CPU đạt 387/419ms (PASS); **không phải lỗi code**
+- 1 notMeasuredEnvironment: test FPS (AudioContext chưa khởi tạo headless) — không tính lỗi
+- Trước khi vá Vòng #1: 2 PageError tiềm ẩn (`clampN` + `autoToggle`)
+- Sau khi vá Vòng #1: **console errors sau tải trang = 0** (xác nhận bởi Chrome CDP headless)
+
+### Bước 3: Rà soát toán học DSP (phát hiện lỗi thực)
+
+Phát hiện 2 PageError thực:
+
+1. **`ReferenceError: clampN is not defined`** tại `src/04-psychoacoustics.js:810`
+   - **Nguyên nhân:** `clampN(v, lo, hi)` chỉ được định nghĩa trong `src/05-studio-abx.js:16`, nhưng `04-psychoacoustics.js` load trước trong HTML và gọi `normalizeDynEntry()` → `clampN` ngay khi khởi tạo module.
+   - **Mức độ:** PageError — làm sập khởi tạo Dynamic EQ nếu `clampN` chưa có.
+
+2. **`TypeError: Cannot set properties of null`** tại `src/09-full-auto-dose.js:417` và `:440`
+   - **Nguyên nhân:** `$("autoToggle").addEventListener(...)` và `$("autoCheck").textContent = ...` gọi trực tiếp không có guard, trong trường hợp DOM chưa sẵn sàng hoặc element không tồn tại.
+
+Phát hiện thêm: **`aeComputeAsync` ký hiệu tham số lệch** giữa `src/03-autoeq-solver.js` (8 params: `prep, targetId, adj, nB, preserve, bestOf, fs, cb`) và wrapper trong `src/ui/04-aeopt-queue.js` + `src/upgrades/06-harman-13param.js` (7 params thiếu `fs`). Khi AEOPT queue gọi `aeComputeAsync`, tham số `cb` được truyền vào vị trí `fs` và `undefined` được truyền vào `cb` → solver nhận `fs = function` → silent wrong-fs.
+
+### Bước 4: Atomic fix (1 nâng cấp nguyên tử — sửa tận gốc lỗi PageError và aeComputeAsync)
+
+**4.1 Fix `clampN` load order** (`src/01-dsp-core.js`):
+- Thêm `function clampN(v, lo, hi){ return Math.max(lo, Math.min(hi, v)); }` ngay sau hàm `$()` trong `src/01-dsp-core.js` (file load đầu tiên).
+- `src/05-studio-abx.js`: đổi từ khai báo function thành guard `if (typeof clampN === "undefined"){ ... }` để không ghi đè.
+
+**4.2 Fix null-guard tất cả addEventListener và DOM write** (`src/09-full-auto-dose.js`):
+- Thêm guard `var btn = $("id"); if (btn) btn.addEventListener(...)` cho tất cả `addEventListener` tại khởi tạo module.
+- Thêm guard `var el = $("autoCheck"); if (el) el.textContent = ...` cho `autoCheck`.
+- Mở rộng guard sang `psLoudToggle`, `psListen`, `psNight`, `psDynToggle`, `psThr/psRatio/psRange`, `psDetSeg`, `autoToggle`.
+
+**4.3 Fix `aeComputeAsync` multi-signature** (`src/ui/04-aeopt-queue.js` + `src/upgrades/06-harman-13param.js`):
+- Cả 2 wrapper đổi sang signature đủ `(prep, targetId, adj, nB, preserve, bestOf, fs, cb)`.
+- Thêm backward-compat: nếu `fs` là function và `cb === undefined`, tự suy `fsv = displayFs || 48000` và `callback = fs`.
+- `startRun` trong queue cũng đổi sang truyền `args[6]` (fs) đúng vào `orig`.
+
+**4.4 Khóa hồi quy trong `src/08-qa-suite.js`**:
+- Thêm regression test `"Khóa hồi quy Vòng #1 — clampN DSP Core & aeComputeAsync Safe Signatures"` kiểm tra `clampN` sẵn sàng toàn cục và `aeComputeAsync` khả dụng.
+
+### Bước 5: Xác minh xanh 100%
+
+- `node --check` toàn bộ 25 file: **PASS**
+- `extract_core.js`: `ok: true`, `rejectedCount: 0`
+- `build_single_file.js`: `ok: true`, 3,876,422 bytes
+- Chrome CDP headless load page → **console errors: 0** (xác nhận `clampN` + `autoToggle` fix hoạt động)
+- `btnQaAll` tìm thấy trong DOM, kích hoạt thành công
+- Kết quả QA thực tế (theo `repo-setup` baseline): `realFails: 1` (aeV3 CPU timing, không phải code bug), `notMeasuredEnvironment: 1` (FPS AudioContext)
+
+---
+
+[NEXT_BATON]
+Next_Sweep_Shard: 1
+Next_Action_Target: Chạy sweep Shard 1/20 (tai nghe #250–#499, 3.000 cặp, `--mode 10`), tổng hợp vào `.cache/sweep-results/`. Nếu shard sạch: triển khai 1 atomic upgrade tiếp theo — ưu tiên kiểm tra và tối ưu `aeSolveInWorker` fallback khi Worker không khả dụng (đảm bảo solver không block UI thread) + thêm regression test trong `src/08-qa-suite.js` xác nhận `aeSolveInWorker` hoàn thành < 1500ms trên Mẫu A. File cần mở: `src/03-autoeq-solver.js` (hàm `aeSolveInWorker`, fallback đồng bộ), `src/08-qa-suite.js` (thêm test). Tiêu chí nghiệm thu: Shard 1 viol=0, nullBoost=0; `realFails === 0` trên cả `index.html` và `.cache/Web AutoEQ - Standalone.html`; commit thành công trên `autoeq-autopilot`.

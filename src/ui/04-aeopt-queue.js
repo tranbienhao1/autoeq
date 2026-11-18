@@ -49,7 +49,7 @@
     function startRun(key, args, cbs){
       busy = true; currentKey = key; currentCbs = cbs;
       try {
-        orig(args[0], args[1], args[2], args[3], args[4], args[5], function(out){
+        orig(args[0], args[1], args[2], args[3], args[4], args[5], args[6], function(out){
           var done = currentCbs; currentCbs = [];
           for (var i = 0; i < done.length; i++){ try { done[i].cb(out); } catch (e) {} }
           if (queue.length){
@@ -62,14 +62,19 @@
         });
       } catch (e) { busy = false; currentKey = null; currentCbs = []; queue = []; throw e; }
     }
-    aeComputeAsync = function(prep, targetId, adj, nB, preserve, bestOf, cb){
-      if (!OPT.enabled) return orig(prep, targetId, adj, nB, preserve, bestOf, cb);
-      var key = keyOf(prep, targetId, adj, nB, preserve, bestOf);
-      var args = [prep, targetId, adj, nB, preserve, bestOf];
-      if (!busy){ startRun(key, args, [{ cb: cb, args: args }]); return; }
-      if (key === currentKey){ currentCbs.push({ cb: cb, args: args }); OPT.coalesced++; render(); return; }
-      for (var qi = 0; qi < queue.length; qi++){ if (queue[qi].key === key){ queue[qi].cbs.push({ cb: cb, args: args }); OPT.coalesced++; render(); return; } }
-      queue.push({ key: key, args: args, cbs: [{ cb: cb, args: args }] }); render();
+    aeComputeAsync = function(prep, targetId, adj, nB, preserve, bestOf, fs, cb){
+      var fsv = fs, callback = cb;
+      if (typeof fs === "function" && cb === undefined){
+        callback = fs;
+        fsv = (typeof displayFs === "number" && displayFs > 0) ? displayFs : 48000;
+      }
+      if (!OPT.enabled) return orig(prep, targetId, adj, nB, preserve, bestOf, fsv, callback);
+      var key = keyOf(prep, targetId, adj, nB, preserve, bestOf) + "|" + fsv;
+      var args = [prep, targetId, adj, nB, preserve, bestOf, fsv];
+      if (!busy){ startRun(key, args, [{ cb: callback, args: args }]); return; }
+      if (key === currentKey){ currentCbs.push({ cb: callback, args: args }); OPT.coalesced++; render(); return; }
+      for (var qi = 0; qi < queue.length; qi++){ if (queue[qi].key === key){ queue[qi].cbs.push({ cb: callback, args: args }); OPT.coalesced++; render(); return; } }
+      queue.push({ key: key, args: args, cbs: [{ cb: callback, args: args }] }); render();
     };
   } catch (e) {}
 })();

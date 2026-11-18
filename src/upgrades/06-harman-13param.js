@@ -502,9 +502,14 @@ if (typeof document !== "undefined"){
       h13AutoNote();
       h13SyncSolveBtn();
       var origAeComputeAsync = aeComputeAsync;
-      aeComputeAsync = function(prep, targetId, adj, nB, preserve, bestOf, cb){
+      aeComputeAsync = function(prep, targetId, adj, nB, preserve, bestOf, fs, cb){
+        var fsv = fs, callback = cb;
+        if (typeof fs === "function" && cb === undefined){
+          callback = fs;
+          fsv = (typeof displayFs === "number" && displayFs > 0) ? displayFs : 48000;
+        }
         if (!chkH.checked || targetId === "harmanIE13" || typeof AE_TARGETS === "undefined" || !AE_TARGETS[targetId] || !AE_TARGETS[targetId].knots){
-          return origAeComputeAsync(prep, targetId, adj, nB, preserve, bestOf, cb);
+          return origAeComputeAsync(prep, targetId, adj, nB, preserve, bestOf, fsv, callback);
         }
         var srcId = targetId, srcName = AE_TARGETS[srcId].name, fitH = null;
         try {
@@ -528,10 +533,10 @@ if (typeof document !== "undefined"){
             } else exH.textContent = AE_TARGETS.harmanIE13.name;
           }
         } catch (e) { fitH = null; }
-        if (!fitH) return origAeComputeAsync(prep, targetId, adj, nB, preserve, bestOf, cb);
-        return origAeComputeAsync(prep, "harmanIE13", adj, nB, preserve, bestOf, function(out){
+        if (!fitH) return origAeComputeAsync(prep, targetId, adj, nB, preserve, bestOf, fsv, callback);
+        return origAeComputeAsync(prep, "harmanIE13", adj, nB, preserve, bestOf, fsv, function(out){
           out.h13Auto = { sourceId: srcId, sourceName: srcName, rms: fitH.rmsError, max: fitH.maxError };
-          cb(out);
+          callback(out);
           var utH = document.getElementById("aeUsedTgt");
           if (utH) utH.textContent = AE_TARGETS.harmanIE13.name;
           if (!preserve && typeof aeTargetCurve === "function" && typeof AE !== "undefined"){

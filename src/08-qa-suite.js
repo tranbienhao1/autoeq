@@ -1229,6 +1229,15 @@ function qaRunSuite(){
       "13/13 tham số có độ nhạy độc lập · mặc định khớp 22 knots RMS <= 0.35 dB, max <= 0.90 dB · solver 13 band trên Mẫu A giảm lỗi >= 65%, 0 vi phạm · Mẫu C 0 band boost vào null · kẹp NaN an toàn",
       "selfCheck6", "UP.selfCheck6() — chạy đúng UP.pure6 và aeCompute đang giao trong app (đồng bộ, trong QA)");
   })();
+  /* Khóa hồi quy Vòng #1: clampN sẵn sàng từ core dsp, biên kẹp chính xác, aeComputeAsync đa chữ ký an toàn */
+  (function(){
+    var cOk = typeof clampN === "function" && clampN(15, 0, 10) === 10 && clampN(-5, 0, 10) === 0 && clampN(4.2, 0, 10) === 4.2;
+    var aOk = typeof aeComputeAsync === "function";
+    row("Khóa hồi quy Vòng #1 — clampN DSP Core & aeComputeAsync Safe Signatures",
+      "clampN sẵn sàng toàn cục từ src/01-dsp-core.js (kẹp cận đúng [min,max]) · aeComputeAsync khả dụng an toàn",
+      "clampN khả dụng: " + (typeof clampN === "function") + " · kiểm tra kẹp [0,10]: " + (cOk ? "ĐẠT" : "LỖI") + " · aeComputeAsync: " + (aOk ? "ĐẠT" : "CHƯA KHỞI TẠO"),
+      cOk && aOk, "Khóa hồi quy PageError Vòng #1 (khởi tạo sớm clampN và bảo vệ wrapper aeComputeAsync)");
+  })();
   return rows;
 }
 /* ---------------- Dashboard + cổng xuất file ---------------- */

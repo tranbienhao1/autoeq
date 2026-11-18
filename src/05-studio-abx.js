@@ -13,7 +13,7 @@
    ================================================================ */
 var LYR = { filter:true, fft:true };
 var SOLO = { on:false };
-function clampN(v, lo, hi){ return Math.max(lo, Math.min(hi, v)); }
+if (typeof clampN === "undefined"){ var clampN = function(v, lo, hi){ return Math.max(lo, Math.min(hi, v)); }; }
 
 /* ---------------- Bố cục Studio (di chuyển panel có sẵn, giữ nguyên ID & listener) ---------------- */
 function buildStudioLayout(){

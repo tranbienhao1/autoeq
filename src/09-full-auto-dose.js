@@ -400,30 +400,34 @@ $("bc20").addEventListener("click", function(){ AUTO.manual.band = true; autoSyn
 $("preManual").addEventListener("click", function(){ AUTO.manual.pre = true; autoSyncUI(); });
 $("preAuto").addEventListener("click", function(){ AUTO.manual.pre = false; autoSyncUI(); });
 $("btnLimiter").addEventListener("click", function(){ AUTO.manual.limiter = !limiterOn; autoSyncUI(); });
-$("psLoudToggle").addEventListener("click", function(){ AUTO.manual.loud = !PSY.loud.on; autoSyncUI(); });
-$("psListen").addEventListener("input", function(){ AUTO.manual.listen = true; autoSyncUI(); });
-$("psNight").addEventListener("click", function(){ AUTO.manual.listen = true; autoSyncUI(); });
-$("psDynToggle").addEventListener("click", function(){
+var _psLoudTog = $("psLoudToggle"); if (_psLoudTog) _psLoudTog.addEventListener("click", function(){ AUTO.manual.loud = !PSY.loud.on; autoSyncUI(); });
+var _psList = $("psListen"); if (_psList) _psList.addEventListener("input", function(){ AUTO.manual.listen = true; autoSyncUI(); });
+var _psNgt = $("psNight"); if (_psNgt) _psNgt.addEventListener("click", function(){ AUTO.manual.listen = true; autoSyncUI(); });
+var _psDynTog = $("psDynToggle"); if (_psDynTog) _psDynTog.addEventListener("click", function(){
   var d = dynCfgFor(selBand);
   if (!d.on) AUTO.manualDynOff[selBand] = true; else delete AUTO.manualDynOff[selBand];
   autoSyncUI();
 });
 ["psThr", "psRatio", "psRange"].forEach(function(id){
-  $(id).addEventListener("input", function(){ AUTO.manualDynEdit[selBand] = true; autoSyncUI(); });
+  var el = $(id);
+  if (el) el.addEventListener("input", function(){ AUTO.manualDynEdit[selBand] = true; autoSyncUI(); });
 });
-$("psDetSeg").addEventListener("click", function(){ AUTO.manualDynEdit[selBand] = true; autoSyncUI(); });
+var _psDet = $("psDetSeg"); if (_psDet) _psDet.addEventListener("click", function(){ AUTO.manualDynEdit[selBand] = true; autoSyncUI(); });
 
 /* --- Nút bật/tắt chế độ: bật lại = cờ tay mới, chạy tự động ngay --- */
-$("autoToggle").addEventListener("click", function(){
-  AUTO.on = !AUTO.on;
-  if (AUTO.on){
-    AUTO.manual = { band: false, pre: false, limiter: false, loud: false, listen: false };
-    AUTO.manualDynOff = {}; AUTO.manualDynEdit = {};
-  }
-  autoSyncUI();
-  try { autoSaveState(); } catch (e) {}
-  if (AUTO.on){ try { autoMaybeSolve("bật lại chế độ tự động"); } catch (e) {} }
-});
+var _btnAuto = $("autoToggle");
+if (_btnAuto){
+  _btnAuto.addEventListener("click", function(){
+    AUTO.on = !AUTO.on;
+    if (AUTO.on){
+      AUTO.manual = { band: false, pre: false, limiter: false, loud: false, listen: false };
+      AUTO.manualDynOff = {}; AUTO.manualDynEdit = {};
+    }
+    autoSyncUI();
+    try { autoSaveState(); } catch (e) {}
+    if (AUTO.on){ try { autoMaybeSolve("bật lại chế độ tự động"); } catch (e) {} }
+  });
+}
 
 /* --- Khởi tạo: khôi phục trạng thái, đồng bộ UI, tự kiểm, lưu khi rời trang --- */
 var _waeqDone = false;
@@ -432,8 +436,8 @@ if (!_waeqDone){ try { autoRestore(); } catch (e) {} }
 autoSyncUI();
 try {
   var _ac = autoSelfCheck();
-  $("autoCheck").textContent = _ac.ok ? "ĐẠT — " + _ac.detail : "CHƯA ĐẠT — " + _ac.detail;
-} catch (e) { $("autoCheck").textContent = "lỗi tự kiểm: " + e.message; }
+  var _chkEl = $("autoCheck"); if (_chkEl) _chkEl.textContent = _ac.ok ? "ĐẠT — " + _ac.detail : "CHƯA ĐẠT — " + _ac.detail;
+} catch (e) { var _chkEl2 = $("autoCheck"); if (_chkEl2) _chkEl2.textContent = "lỗi tự kiểm: " + e.message; }
 window.addEventListener("beforeunload", function(){ try { autoSaveState(); } catch (e) {} });
 document.addEventListener("visibilitychange", function(){ if (document.hidden){ try { autoSaveState(); } catch (e) {} } });
 
