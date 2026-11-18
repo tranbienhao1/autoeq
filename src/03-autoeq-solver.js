@@ -2446,9 +2446,18 @@ var aeWorkerInstance = null, aeWorkerSeq = 0, aeWorkerUrl = null; /* CHAIN TASK 
 function aeSolveInWorker(freqs, errDb, weights, nBands, fs, cb, seedBands){
   var fsv = (typeof fs === "number" && isFinite(fs) && fs > 0) ? fs : AE_FS; /* Pha A/C 2026-11-07: fs truyen theo job (tham so, khong dung global) nen khong race giua cac job. */
   function fallback(){
-    var res = seedBands ? aeSolveSeeded(freqs, errDb, weights, nBands, undefined, fsv, seedBands) : aeSolve(freqs, errDb, weights, nBands, undefined, fsv);
-    try { var el = $("aeWorkerInfo"); if (el) el.textContent = "Luồng giải: Đồng bộ (fallback) — Web Worker không khả dụng hoặc đang chạy QA tổng"; } catch (e){}
-    cb(res, "sync-fallback");
+    var doSolve = function(){
+      try {
+        var res = seedBands ? aeSolveSeeded(freqs, errDb, weights, nBands, undefined, fsv, seedBands) : aeSolve(freqs, errDb, weights, nBands, undefined, fsv);
+        try { var el = $("aeWorkerInfo"); if (el) el.textContent = "Luồng giải: Đồng bộ (fallback) — Web Worker không khả dụng hoặc đang chạy QA tổng"; } catch (e){}
+        cb(res, "sync-fallback");
+      } catch (err){
+        try { var elErr = $("aeWorkerInfo"); if (elErr) elErr.textContent = "Lỗi fallback giải: " + err.message; } catch (e){}
+        cb(null, "error");
+      }
+    };
+    /* Vòng #2: Dùng setTimeout nhường UI thread khi fallback để không làm đơ giao diện 60fps */
+    if (typeof setTimeout === "function") setTimeout(doSolve, 0); else doSolve();
   }
   try {
     if (typeof Worker === "undefined" || typeof Blob === "undefined") return fallback();
@@ -2457,7 +2466,12 @@ function aeSolveInWorker(freqs, errDb, weights, nBands, fs, cb, seedBands){
     if (!aeWorkerInstance){
       var blob = new Blob([AE_WORKER_SRC + "\n" + AE_WORKER_BOOT], { type: "application/javascript" });
       aeWorkerUrl = URL.createObjectURL(blob);
-      try { aeWorkerInstance = new Worker(aeWorkerUrl); }
+      try {
+        aeWorkerInstance = new Worker(aeWorkerUrl);
+        aeWorkerInstance.addEventListener("error", function(errEv){
+          try { var elW = $("aeWorkerInfo"); if (elW) elW.textContent = "Web Worker gặp lỗi luồng, tự động chuyển về fallback"; } catch (e){}
+        });
+      }
       catch (e){ try { URL.revokeObjectURL(aeWorkerUrl); } catch (e2){} aeWorkerUrl = null; throw e; }
     }
     var id = ++aeWorkerSeq, done = false;
@@ -2466,7 +2480,7 @@ function aeSolveInWorker(freqs, errDb, weights, nBands, fs, cb, seedBands){
       if (done) return; done = true;
       try { aeWorkerInstance.removeEventListener("message", handler); } catch (e){}
       fallback();
-    }, 3000);
+    }, 4500);
     handler = function(ev){
       if (!ev.data || ev.data.id !== id) return;
       if (done) return; done = true; clearTimeout(timer);

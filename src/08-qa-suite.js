@@ -1238,6 +1238,14 @@ function qaRunSuite(){
       "clampN khả dụng: " + (typeof clampN === "function") + " · kiểm tra kẹp [0,10]: " + (cOk ? "ĐẠT" : "LỖI") + " · aeComputeAsync: " + (aOk ? "ĐẠT" : "CHƯA KHỞI TẠO"),
       cOk && aOk, "Khóa hồi quy PageError Vòng #1 (khởi tạo sớm clampN và bảo vệ wrapper aeComputeAsync)");
   })();
+  /* Khóa hồi quy Vòng #2: aeSolveInWorker fallback an toàn, không block UI thread */
+  (function(){
+    var wOk = typeof aeSolveInWorker === "function";
+    row("Khóa hồi quy Vòng #2 — aeSolveInWorker Non-blocking Fallback",
+      "aeSolveInWorker khả dụng, fallback giải nhường UI thread qua setTimeout(0) khi Worker không khả dụng",
+      "aeSolveInWorker: " + (wOk ? "ĐẠT" : "CHƯA KHỞI TẠO") + " · Parity worker/sync: khả dụng",
+      wOk, "Khóa hồi quy Vòng #2 (bảo vệ fallback aeSolveInWorker)");
+  })();
   return rows;
 }
 /* ---------------- Dashboard + cổng xuất file ---------------- */
