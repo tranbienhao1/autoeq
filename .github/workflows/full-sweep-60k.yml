@@ -1,0 +1,155 @@
+name: Full AutoEQ 60K Sweep (20-Shard Matrix)
+
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: "Chế độ giải: '10' (chuẩn 10-band sweep) hoặc 'bestof' (10 + 12-seeded + 20 band)"
+        required: false
+        default: "10"
+        type: choice
+        options:
+          - "10"
+          - "bestof"
+      start_phone:
+        description: "Chỉ số tai nghe bắt đầu (0 = quét sạch toàn bộ 60.000 cặp; 1563 = chỉ quét 41.244 cặp còn lại)"
+        required: false
+        default: "0"
+        type: string
+      end_phone:
+        description: "Chỉ số tai nghe kết thúc (5000 = hết kho)"
+        required: false
+        default: "5000"
+        type: string
+      commit_results:
+        description: "Tự động commit sweep-results/ (REPORT.md, summary.json, results_all.jsonl.gz) vào nhánh"
+        required: false
+        default: true
+        type: boolean
+  push:
+    branches:
+      - main
+      - "feat/full-sweep-60k"
+    paths:
+      - ".github/workflows/full-sweep-60k.yml"
+      - "scripts/sweep/**"
+      - "src/01-dsp-core.js"
+      - "src/03-autoeq-solver.js"
+      - "data/headphone-db.js"
+  pull_request:
+    branches:
+      - main
+    paths:
+      - ".github/workflows/full-sweep-60k.yml"
+      - "scripts/sweep/**"
+      - "src/01-dsp-core.js"
+      - "src/03-autoeq-solver.js"
+      - "data/headphone-db.js"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: full-sweep-60k-${{ github.head_ref || github.ref_name }}
+  cancel-in-progress: true
+
+jobs:
+  sweep_shard:
+    name: "Sweep Shard ${{ matrix.shard }} / 20"
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19]
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Build verbatim AutoEQ + DB core bundle
+        run: node scripts/sweep/extract_core.js
+
+      - name: Run multi-threaded shard ${{ matrix.shard }}
+        run: |
+          MODE="${{ inputs.mode || '10' }}"
+          START_PHONE="${{ inputs.start_phone || '0' }}"
+          END_PHONE="${{ inputs.end_phone || '5000' }}"
+          node scripts/sweep/run_shard.js \
+            --shard "${{ matrix.shard }}" \
+            --shards 20 \
+            --start-phone "${START_PHONE}" \
+            --end-phone "${END_PHONE}" \
+            --mode "${MODE}" \
+            --out-dir sweep-shards
+
+      - name: Upload shard ${{ matrix.shard }} output
+        uses: actions/upload-artifact@v4
+        with:
+          name: sweep-shard-${{ matrix.shard }}
+          path: sweep-shards/shard-*
+          if-no-files-found: error
+          retention-days: 7
+
+  aggregate:
+    name: "Aggregate 60K Results & Generate Report"
+    needs: sweep_shard
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Download all 20 shard artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: sweep-shard-*
+          path: sweep-shards
+          merge-multiple: true
+
+      - name: Aggregate 60,000 pairs & build summary report
+        run: |
+          START_PHONE="${{ inputs.start_phone || '0' }}"
+          END_PHONE="${{ inputs.end_phone || '5000' }}"
+          EXPECTED=$(( (END_PHONE - START_PHONE) * 12 ))
+          node scripts/sweep/aggregate_results.js \
+            --shards-dir sweep-shards \
+            --out-dir sweep-results \
+            --expected-pairs "${EXPECTED}"
+          cat sweep-results/REPORT.md >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload complete 60K dataset & report artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: autoeq-full-sweep-60k-results
+          path: sweep-results/*
+          if-no-files-found: error
+          retention-days: 90
+
+      - name: Commit sweep-results/ back to branch (optional)
+        if: ${{ inputs.commit_results != false }}
+        continue-on-error: true
+        run: |
+          TARGET_BRANCH="${GITHUB_HEAD_REF:-${GITHUB_REF_NAME}}"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add sweep-results/REPORT.md sweep-results/summary.json sweep-results/results_all.jsonl.gz
+          if git diff --cached --quiet; then
+            echo "No changes in sweep-results/ to commit."
+            exit 0
+          fi
+          git commit -m "chore(sweep): update 60k headphone-target sweep results [skip ci]"
+          git fetch origin "${TARGET_BRANCH}"
+          git rebase "origin/${TARGET_BRANCH}"
+          git push origin "HEAD:${TARGET_BRANCH}"

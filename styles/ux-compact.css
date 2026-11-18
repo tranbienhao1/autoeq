@@ -1,0 +1,5 @@
+  body.compact-ux .ux-adv-panel, body.compact-ux .ux-qa-panel { display: none !important; }
+  #quickEqHub .btn.tog.on { border-color: var(--amber); color: var(--amber); }
+  .ux-tp-more { margin-top: 8px; }
+  .ux-tp-more summary { cursor: pointer; color: var(--mut); font-size: 12.5px; }
+  .ux-tp-more .ux-tp-row { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 6px; }
