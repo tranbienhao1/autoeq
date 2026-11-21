@@ -1,0 +1,5 @@
+.cache/
+node_modules/
+sweep-shards/
+tmp/
+*.tmp

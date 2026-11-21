@@ -1,0 +1,17 @@
+/* Bố cục cạnh đồ thị: AutoEQ xếp 1 cột khi nằm trong cột giữa cạnh đồ thị */
+.st-center #aePanel { grid-template-columns: 1fr !important; }
+.st-center #aePanel > .panel { min-width: 0; }
+#graphPinWrap { position: sticky; top: 8px; z-index: 70; margin-bottom: 14px; padding: 10px 12px; }
+#graphPinWrap .graphbox { margin: 0; }
+#graphPinHead { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 6px; }
+#graphPinHead .gpt { font-weight: 700; letter-spacing: .04em; font-size: 13px; opacity: .9; }
+#graphPinHead label { font-size: 12.5px; cursor: pointer; white-space: nowrap; }
+#graphPinNote { display: none; font-size: 12.5px; opacity: .75; padding: 6px 2px 2px; }
+#graphDock { position: fixed; left: 10px; top: 70px; z-index: 90; display: none; padding: 10px 12px; margin: 0; overflow: auto; box-shadow: 0 10px 34px rgba(0,0,0,.55); }
+#graphDock .graphbox { margin: 0; }
+#graphDockHead { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 6px; }
+#graphDockHead .gpt { font-weight: 700; letter-spacing: .04em; font-size: 13px; opacity: .9; }
+#graphDockHide { cursor: pointer; }
+#graphDockShow { position: fixed; left: 10px; top: 70px; z-index: 90; display: none; cursor: pointer; font-weight: 700; }
+#graphDockResize { position: fixed; width: 20px; height: 20px; cursor: nwse-resize; touch-action: none; z-index: 3; opacity: .8; background: linear-gradient(135deg, transparent 0%, transparent 48%, #6b7684 48%, #6b7684 55%, transparent 55%, transparent 63%, #6b7684 63%, #6b7684 70%, transparent 70%, transparent 78%, #6b7684 78%, #6b7684 85%, transparent 85%, transparent 100%); }
+#graphDockResize:hover { opacity: 1; }
