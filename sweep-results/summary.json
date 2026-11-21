@@ -1,0 +1,1062 @@
+{
+  "generatedAt": "2026-11-21T21:31:07.565Z",
+  "htmlMd5": "2b7a4ea66a9dda4ea63255916b43182c",
+  "solverCoreMd5": "e5a6503409d3acb8e83f2c390a0876f9",
+  "mode": "bestof",
+  "shardsCount": 40,
+  "maxShardWallSec": 5992.93,
+  "sumShardWallSec": 186805.13,
+  "totalPairs": 60000,
+  "uniquePhones": 5000,
+  "phonesComplete12": 5000,
+  "duplicates": 0,
+  "totalViolations": 0,
+  "totalNullBoosts": 0,
+  "hardPairsOver1500ms": 59998,
+  "byPickedBands": {
+    "10": 931,
+    "12": 4857,
+    "20": 54212
+  },
+  "rmsBefore": {
+    "count": 60000,
+    "mean": 5.1346,
+    "median": 4.6674,
+    "min": 0.9099,
+    "p10": 2.5683,
+    "p25": 3.3865,
+    "p75": 6.3694,
+    "p90": 8.1394,
+    "p95": 9.4938,
+    "p99": 13.3384,
+    "max": 28.5695
+  },
+  "rmsAfter": {
+    "count": 60000,
+    "mean": 0.1818,
+    "median": 0.1579,
+    "min": 0.0359,
+    "p10": 0.0888,
+    "p25": 0.1142,
+    "p75": 0.2232,
+    "p90": 0.3024,
+    "p95": 0.359,
+    "p99": 0.491,
+    "max": 1.5191
+  },
+  "segments": {
+    "first18756_0_to_1562": {
+      "count": 18756,
+      "mean": 0.1829,
+      "median": 0.1621,
+      "min": 0.0385,
+      "p10": 0.0925,
+      "p25": 0.1195,
+      "p75": 0.2243,
+      "p90": 0.2995,
+      "p95": 0.3519,
+      "p99": 0.4666,
+      "max": 1.3387
+    },
+    "remaining41244_1563_to_4999": {
+      "count": 41244,
+      "mean": 0.1813,
+      "median": 0.1559,
+      "min": 0.0359,
+      "p10": 0.0875,
+      "p25": 0.1121,
+      "p75": 0.2227,
+      "p90": 0.3038,
+      "p95": 0.3624,
+      "p99": 0.5083,
+      "max": 1.5191
+    }
+  },
+  "bestPair": {
+    "phoneIdx": 2837,
+    "phone": "InAwaken Dawn",
+    "target": "ief",
+    "rmsBefore": 3.64751,
+    "rmsAfter": 0.035878
+  },
+  "worstPair": {
+    "phoneIdx": 2210,
+    "phone": "Creative Outlier Free Pro Plus",
+    "target": "soundguys",
+    "rmsBefore": 24.986434,
+    "rmsAfter": 1.51905
+  },
+  "byType": {
+    "In-ear": {
+      "count": 34416,
+      "mean": 0.1438,
+      "median": 0.1274,
+      "min": 0.0359,
+      "p10": 0.0797,
+      "p25": 0.0985,
+      "p75": 0.1715,
+      "p90": 0.2277,
+      "p95": 0.2705,
+      "p99": 0.3723,
+      "max": 1.5191
+    },
+    "Over-ear": {
+      "count": 24168,
+      "mean": 0.2325,
+      "median": 0.2097,
+      "min": 0.0447,
+      "p10": 0.1274,
+      "p25": 0.1604,
+      "p75": 0.2784,
+      "p90": 0.358,
+      "p95": 0.4097,
+      "p99": 0.6241,
+      "max": 1.3551
+    },
+    "Earbud": {
+      "count": 1416,
+      "mean": 0.2419,
+      "median": 0.2041,
+      "min": 0.0653,
+      "p10": 0.118,
+      "p25": 0.1495,
+      "p75": 0.2843,
+      "p90": 0.399,
+      "p95": 0.5444,
+      "p99": 0.77,
+      "max": 1.104
+    }
+  },
+  "byTarget": {
+    "harmanOE": {
+      "count": 5000,
+      "mean": 0.179,
+      "median": 0.1554,
+      "min": 0.0385,
+      "p10": 0.0837,
+      "p25": 0.1083,
+      "p75": 0.2217,
+      "p90": 0.3028,
+      "p95": 0.3556,
+      "p99": 0.4923,
+      "max": 1.2469
+    },
+    "harmanIE": {
+      "count": 5000,
+      "mean": 0.1828,
+      "median": 0.1583,
+      "min": 0.0461,
+      "p10": 0.087,
+      "p25": 0.1131,
+      "p75": 0.2244,
+      "p90": 0.3068,
+      "p95": 0.3643,
+      "p99": 0.501,
+      "max": 1.3551
+    },
+    "ief": {
+      "count": 5000,
+      "mean": 0.1808,
+      "median": 0.1578,
+      "min": 0.0359,
+      "p10": 0.0842,
+      "p25": 0.111,
+      "p75": 0.2239,
+      "p90": 0.3066,
+      "p95": 0.3588,
+      "p99": 0.5042,
+      "max": 1.2229
+    },
+    "jm1": {
+      "count": 5000,
+      "mean": 0.1906,
+      "median": 0.1659,
+      "min": 0.0447,
+      "p10": 0.0924,
+      "p25": 0.1202,
+      "p75": 0.2359,
+      "p90": 0.3169,
+      "p95": 0.3742,
+      "p99": 0.5066,
+      "max": 1.3174
+    },
+    "diffuseField": {
+      "count": 5000,
+      "mean": 0.1859,
+      "median": 0.1618,
+      "min": 0.0393,
+      "p10": 0.0962,
+      "p25": 0.1204,
+      "p75": 0.2267,
+      "p90": 0.3054,
+      "p95": 0.3623,
+      "p99": 0.4837,
+      "max": 1.2452
+    },
+    "diffuseFieldKemar": {
+      "count": 5000,
+      "mean": 0.1868,
+      "median": 0.1627,
+      "min": 0.0537,
+      "p10": 0.0973,
+      "p25": 0.1208,
+      "p75": 0.2272,
+      "p90": 0.3038,
+      "p95": 0.3593,
+      "p99": 0.469,
+      "max": 1.2611
+    },
+    "freeField": {
+      "count": 5000,
+      "mean": 0.1916,
+      "median": 0.1695,
+      "min": 0.0473,
+      "p10": 0.1001,
+      "p25": 0.1252,
+      "p75": 0.2318,
+      "p90": 0.3104,
+      "p95": 0.3625,
+      "p99": 0.4793,
+      "max": 1.2067
+    },
+    "harmanOE2013": {
+      "count": 5000,
+      "mean": 0.1758,
+      "median": 0.1508,
+      "min": 0.0421,
+      "p10": 0.0875,
+      "p25": 0.1113,
+      "p75": 0.2149,
+      "p90": 0.2915,
+      "p95": 0.3472,
+      "p99": 0.4957,
+      "max": 1.2549
+    },
+    "harmanOE2015": {
+      "count": 5000,
+      "mean": 0.1766,
+      "median": 0.1524,
+      "min": 0.0447,
+      "p10": 0.0863,
+      "p25": 0.1104,
+      "p75": 0.2158,
+      "p90": 0.2941,
+      "p95": 0.352,
+      "p99": 0.4834,
+      "max": 1.1924
+    },
+    "oratoryOptimum": {
+      "count": 5000,
+      "mean": 0.1724,
+      "median": 0.1497,
+      "min": 0.0393,
+      "p10": 0.0829,
+      "p25": 0.108,
+      "p75": 0.2111,
+      "p90": 0.2873,
+      "p95": 0.3444,
+      "p99": 0.4862,
+      "max": 1.2039
+    },
+    "rtings": {
+      "count": 5000,
+      "mean": 0.177,
+      "median": 0.1509,
+      "min": 0.038,
+      "p10": 0.084,
+      "p25": 0.1078,
+      "p75": 0.2202,
+      "p90": 0.3001,
+      "p95": 0.3564,
+      "p99": 0.4905,
+      "max": 1.2088
+    },
+    "soundguys": {
+      "count": 5000,
+      "mean": 0.1827,
+      "median": 0.1599,
+      "min": 0.0393,
+      "p10": 0.0889,
+      "p25": 0.114,
+      "p75": 0.2247,
+      "p90": 0.304,
+      "p95": 0.3621,
+      "p99": 0.4894,
+      "max": 1.5191
+    }
+  },
+  "worst30Phones": [
+    {
+      "phoneIdx": 1438,
+      "phone": "Cambridge Audio Melomania P100 (ANC on)",
+      "type": "Over-ear",
+      "source": "Kuulokenurkka",
+      "meanRmsAfter": 1.1876,
+      "maxRmsAfter": 1.3387,
+      "worstTarget": "soundguys"
+    },
+    {
+      "phoneIdx": 1898,
+      "phone": "Auribus Acoustics Sierra Open",
+      "type": "Over-ear",
+      "source": "Super Review",
+      "meanRmsAfter": 1.1761,
+      "maxRmsAfter": 1.3551,
+      "worstTarget": "harmanIE"
+    },
+    {
+      "phoneIdx": 2106,
+      "phone": "Cambridge Audio Melomania P100 (ANC off)",
+      "type": "Over-ear",
+      "source": "Kuulokenurkka",
+      "meanRmsAfter": 1.0827,
+      "maxRmsAfter": 1.3174,
+      "worstTarget": "jm1"
+    },
+    {
+      "phoneIdx": 4896,
+      "phone": "ZMF Auteur Classic (ZMF Caldera hybrid earpads)",
+      "type": "Over-ear",
+      "source": "Super Review",
+      "meanRmsAfter": 1.0537,
+      "maxRmsAfter": 1.2549,
+      "worstTarget": "harmanOE2013"
+    },
+    {
+      "phoneIdx": 1984,
+      "phone": "Beyerdynamic T50p (serial number 16912)",
+      "type": "Over-ear",
+      "source": "Innerfidelity",
+      "meanRmsAfter": 1.0421,
+      "maxRmsAfter": 1.2806,
+      "worstTarget": "harmanIE"
+    },
+    {
+      "phoneIdx": 2210,
+      "phone": "Creative Outlier Free Pro Plus",
+      "type": "In-ear",
+      "source": "Regan Cipher",
+      "meanRmsAfter": 1.0349,
+      "maxRmsAfter": 1.5191,
+      "worstTarget": "soundguys"
+    },
+    {
+      "phoneIdx": 4835,
+      "phone": "Yamaha YH-5000SE (suede earpads)",
+      "type": "Over-ear",
+      "source": "Kuulokenurkka",
+      "meanRmsAfter": 0.977,
+      "maxRmsAfter": 1.0748,
+      "worstTarget": "harmanOE2015"
+    },
+    {
+      "phoneIdx": 2388,
+      "phone": "Edifier WH950NB (ANC on, classic mode)",
+      "type": "Over-ear",
+      "source": "Kuulokenurkka",
+      "meanRmsAfter": 0.9718,
+      "maxRmsAfter": 1.0514,
+      "worstTarget": "harmanOE2015"
+    },
+    {
+      "phoneIdx": 2390,
+      "phone": "Edifier WH950NB (ANC on, dynamic mode)",
+      "type": "Over-ear",
+      "source": "Kuulokenurkka",
+      "meanRmsAfter": 0.9639,
+      "maxRmsAfter": 1.1028,
+      "worstTarget": "harmanOE2015"
+    },
+    {
+      "phoneIdx": 3411,
+      "phone": "Moondrop Para (fenestrated PU earpads)",
+      "type": "Over-ear",
+      "source": "Super Review",
+      "meanRmsAfter": 0.9233,
+      "maxRmsAfter": 1.0268,
+      "worstTarget": "diffuseFieldKemar"
+    },
+    {
+      "phoneIdx": 4030,
+      "phone": "Sennheiser PXC 350",
+      "type": "Over-ear",
+      "source": "Headphone.com Legacy",
+      "meanRmsAfter": 0.9212,
+      "maxRmsAfter": 1.1509,
+      "worstTarget": "rtings"
+    },
+    {
+      "phoneIdx": 4171,
+      "phone": "Skullcandy SkullCrushers Max Bass",
+      "type": "Over-ear",
+      "source": "Headphone.com Legacy",
+      "meanRmsAfter": 0.8267,
+      "maxRmsAfter": 1.2014,
+      "worstTarget": "ief"
+    },
+    {
+      "phoneIdx": 3971,
+      "phone": "Sennheiser HD 490 Pro (mixing earpads)",
+      "type": "Over-ear",
+      "source": "Super Review",
+      "meanRmsAfter": 0.825,
+      "maxRmsAfter": 0.8863,
+      "worstTarget": "soundguys"
+    },
+    {
+      "phoneIdx": 2595,
+      "phone": "Fostex T50RP Mk4",
+      "type": "Over-ear",
+      "source": "Super Review",
+      "meanRmsAfter": 0.8082,
+      "maxRmsAfter": 0.8285,
+      "worstTarget": "ief"
+    },
+    {
+      "phoneIdx": 1277,
+      "phone": "Sivga Anser",
+      "type": "Over-ear",
+      "source": "Super Review",
+      "meanRmsAfter": 0.8033,
+      "maxRmsAfter": 0.8972,
+      "worstTarget": "harmanOE"
+    },
+    {
+      "phoneIdx": 4056,
+      "phone": "Shokz OpenRun",
+      "type": "Earbud",
+      "source": "Rtings (HMS II.3)",
+      "meanRmsAfter": 0.7813,
+      "maxRmsAfter": 1.0468,
+      "worstTarget": "harmanIE"
+    },
+    {
+      "phoneIdx": 1171,
+      "phone": "Beyerdynamic DT 880 (600 ohm)",
+      "type": "Over-ear",
+      "source": "Super Review",
+      "meanRmsAfter": 0.7741,
+      "maxRmsAfter": 0.86,
+      "worstTarget": "soundguys"
+    },
+    {
+      "phoneIdx": 3597,
+      "phone": "Oladance OWS Sport (ANC off)",
+      "type": "Earbud",
+      "source": "Regan Cipher",
+      "meanRmsAfter": 0.7663,
+      "maxRmsAfter": 1.104,
+      "worstTarget": "rtings"
+    },
+    {
+      "phoneIdx": 1472,
+      "phone": "Stax SR-X1 (weak seal)",
+      "type": "Over-ear",
+      "source": "Kuulokenurkka",
+      "meanRmsAfter": 0.7623,
+      "maxRmsAfter": 0.873,
+      "worstTarget": "freeField"
+    },
+    {
+      "phoneIdx": 3944,
+      "phone": "Sennheiser EH 250",
+      "type": "Over-ear",
+      "source": "Headphone.com Legacy",
+      "meanRmsAfter": 0.7372,
+      "maxRmsAfter": 0.8811,
+      "worstTarget": "harmanIE"
+    },
+    {
+      "phoneIdx": 1917,
+      "phone": "Baseus AirGo AS01",
+      "type": "In-ear",
+      "source": "Regan Cipher",
+      "meanRmsAfter": 0.7305,
+      "maxRmsAfter": 0.8935,
+      "worstTarget": "jm1"
+    },
+    {
+      "phoneIdx": 4970,
+      "phone": "Sennheiser HD 429",
+      "type": "Over-ear",
+      "source": "Headphone.com Legacy",
+      "meanRmsAfter": 0.6848,
+      "maxRmsAfter": 0.777,
+      "worstTarget": "harmanOE"
+    },
+    {
+      "phoneIdx": 4057,
+      "phone": "Shokz OpenRun Pro",
+      "type": "Earbud",
+      "source": "Rtings (HMS II.3)",
+      "meanRmsAfter": 0.6805,
+      "maxRmsAfter": 0.8426,
+      "worstTarget": "rtings"
+    },
+    {
+      "phoneIdx": 4205,
+      "phone": "Sonos Ace (ANC off)",
+      "type": "Over-ear",
+      "source": "Kuulokenurkka",
+      "meanRmsAfter": 0.6624,
+      "maxRmsAfter": 0.7637,
+      "worstTarget": "harmanOE2015"
+    },
+    {
+      "phoneIdx": 3967,
+      "phone": "Sennheiser HD 439",
+      "type": "Over-ear",
+      "source": "Innerfidelity",
+      "meanRmsAfter": 0.6509,
+      "maxRmsAfter": 0.7363,
+      "worstTarget": "soundguys"
+    },
+    {
+      "phoneIdx": 1678,
+      "phone": "AfterShokz Trekz Air",
+      "type": "Earbud",
+      "source": "Rtings (HMS II.3)",
+      "meanRmsAfter": 0.6344,
+      "maxRmsAfter": 0.9357,
+      "worstTarget": "ief"
+    },
+    {
+      "phoneIdx": 4206,
+      "phone": "Sonos Ace (ANC on, loudness on)",
+      "type": "Over-ear",
+      "source": "Kuulokenurkka",
+      "meanRmsAfter": 0.6304,
+      "maxRmsAfter": 0.7853,
+      "worstTarget": "harmanIE"
+    },
+    {
+      "phoneIdx": 4323,
+      "phone": "SoundPeats Breezy (ANC off)",
+      "type": "Earbud",
+      "source": "Regan Cipher",
+      "meanRmsAfter": 0.6116,
+      "maxRmsAfter": 0.7287,
+      "worstTarget": "harmanOE"
+    },
+    {
+      "phoneIdx": 2065,
+      "phone": "Bose Ultra Open Earbuds",
+      "type": "Earbud",
+      "source": "Rtings (B&K 5128)",
+      "meanRmsAfter": 0.5748,
+      "maxRmsAfter": 0.6623,
+      "worstTarget": "soundguys"
+    },
+    {
+      "phoneIdx": 2670,
+      "phone": "Haylou PurFree Buds",
+      "type": "In-ear",
+      "source": "Regan Cipher",
+      "meanRmsAfter": 0.5596,
+      "maxRmsAfter": 1.0773,
+      "worstTarget": "diffuseFieldKemar"
+    }
+  ],
+  "worst50Pairs": [
+    {
+      "phoneIdx": 2210,
+      "phone": "Creative Outlier Free Pro Plus",
+      "type": "In-ear",
+      "target": "soundguys",
+      "rmsBefore": 24.986434,
+      "rmsAfter": 1.51905,
+      "pickedBands": 20,
+      "ms": 13559
+    },
+    {
+      "phoneIdx": 1898,
+      "phone": "Auribus Acoustics Sierra Open",
+      "type": "Over-ear",
+      "target": "harmanIE",
+      "rmsBefore": 5.542469,
+      "rmsAfter": 1.355109,
+      "pickedBands": 12,
+      "ms": 18078
+    },
+    {
+      "phoneIdx": 1438,
+      "phone": "Cambridge Audio Melomania P100 (ANC on)",
+      "type": "Over-ear",
+      "target": "soundguys",
+      "rmsBefore": 4.836788,
+      "rmsAfter": 1.338744,
+      "pickedBands": 12,
+      "ms": 32299
+    },
+    {
+      "phoneIdx": 1438,
+      "phone": "Cambridge Audio Melomania P100 (ANC on)",
+      "type": "Over-ear",
+      "target": "harmanIE",
+      "rmsBefore": 4.506853,
+      "rmsAfter": 1.32302,
+      "pickedBands": 12,
+      "ms": 35108
+    },
+    {
+      "phoneIdx": 2106,
+      "phone": "Cambridge Audio Melomania P100 (ANC off)",
+      "type": "Over-ear",
+      "target": "jm1",
+      "rmsBefore": 7.462137,
+      "rmsAfter": 1.317443,
+      "pickedBands": 20,
+      "ms": 33882
+    },
+    {
+      "phoneIdx": 1438,
+      "phone": "Cambridge Audio Melomania P100 (ANC on)",
+      "type": "Over-ear",
+      "target": "jm1",
+      "rmsBefore": 5.820005,
+      "rmsAfter": 1.31617,
+      "pickedBands": 20,
+      "ms": 38127
+    },
+    {
+      "phoneIdx": 1984,
+      "phone": "Beyerdynamic T50p (serial number 16912)",
+      "type": "Over-ear",
+      "target": "harmanIE",
+      "rmsBefore": 8.996926,
+      "rmsAfter": 1.280575,
+      "pickedBands": 12,
+      "ms": 36981
+    },
+    {
+      "phoneIdx": 2210,
+      "phone": "Creative Outlier Free Pro Plus",
+      "type": "In-ear",
+      "target": "diffuseFieldKemar",
+      "rmsBefore": 20.626104,
+      "rmsAfter": 1.261145,
+      "pickedBands": 20,
+      "ms": 15451
+    },
+    {
+      "phoneIdx": 4896,
+      "phone": "ZMF Auteur Classic (ZMF Caldera hybrid earpads)",
+      "type": "Over-ear",
+      "target": "harmanOE2013",
+      "rmsBefore": 7.491271,
+      "rmsAfter": 1.2549,
+      "pickedBands": 10,
+      "ms": 14806
+    },
+    {
+      "phoneIdx": 1984,
+      "phone": "Beyerdynamic T50p (serial number 16912)",
+      "type": "Over-ear",
+      "target": "harmanOE",
+      "rmsBefore": 7.923519,
+      "rmsAfter": 1.246941,
+      "pickedBands": 20,
+      "ms": 55388
+    },
+    {
+      "phoneIdx": 1898,
+      "phone": "Auribus Acoustics Sierra Open",
+      "type": "Over-ear",
+      "target": "diffuseField",
+      "rmsBefore": 3.909796,
+      "rmsAfter": 1.245194,
+      "pickedBands": 12,
+      "ms": 20708
+    },
+    {
+      "phoneIdx": 1984,
+      "phone": "Beyerdynamic T50p (serial number 16912)",
+      "type": "Over-ear",
+      "target": "soundguys",
+      "rmsBefore": 7.999969,
+      "rmsAfter": 1.239624,
+      "pickedBands": 12,
+      "ms": 43265
+    },
+    {
+      "phoneIdx": 1984,
+      "phone": "Beyerdynamic T50p (serial number 16912)",
+      "type": "Over-ear",
+      "target": "ief",
+      "rmsBefore": 6.529803,
+      "rmsAfter": 1.222865,
+      "pickedBands": 12,
+      "ms": 37311
+    },
+    {
+      "phoneIdx": 1898,
+      "phone": "Auribus Acoustics Sierra Open",
+      "type": "Over-ear",
+      "target": "harmanOE",
+      "rmsBefore": 4.54261,
+      "rmsAfter": 1.216739,
+      "pickedBands": 20,
+      "ms": 17865
+    },
+    {
+      "phoneIdx": 1438,
+      "phone": "Cambridge Audio Melomania P100 (ANC on)",
+      "type": "Over-ear",
+      "target": "diffuseFieldKemar",
+      "rmsBefore": 7.273403,
+      "rmsAfter": 1.214465,
+      "pickedBands": 12,
+      "ms": 38610
+    },
+    {
+      "phoneIdx": 1898,
+      "phone": "Auribus Acoustics Sierra Open",
+      "type": "Over-ear",
+      "target": "rtings",
+      "rmsBefore": 2.287698,
+      "rmsAfter": 1.208786,
+      "pickedBands": 20,
+      "ms": 22777
+    },
+    {
+      "phoneIdx": 1438,
+      "phone": "Cambridge Audio Melomania P100 (ANC on)",
+      "type": "Over-ear",
+      "target": "freeField",
+      "rmsBefore": 7.453905,
+      "rmsAfter": 1.206734,
+      "pickedBands": 12,
+      "ms": 29816
+    },
+    {
+      "phoneIdx": 1438,
+      "phone": "Cambridge Audio Melomania P100 (ANC on)",
+      "type": "Over-ear",
+      "target": "oratoryOptimum",
+      "rmsBefore": 5.692462,
+      "rmsAfter": 1.203949,
+      "pickedBands": 12,
+      "ms": 30519
+    },
+    {
+      "phoneIdx": 2106,
+      "phone": "Cambridge Audio Melomania P100 (ANC off)",
+      "type": "Over-ear",
+      "target": "freeField",
+      "rmsBefore": 9.274784,
+      "rmsAfter": 1.202348,
+      "pickedBands": 12,
+      "ms": 41993
+    },
+    {
+      "phoneIdx": 4171,
+      "phone": "Skullcandy SkullCrushers Max Bass",
+      "type": "Over-ear",
+      "target": "ief",
+      "rmsBefore": 7.142392,
+      "rmsAfter": 1.201375,
+      "pickedBands": 12,
+      "ms": 40613
+    },
+    {
+      "phoneIdx": 2106,
+      "phone": "Cambridge Audio Melomania P100 (ANC off)",
+      "type": "Over-ear",
+      "target": "ief",
+      "rmsBefore": 6.320197,
+      "rmsAfter": 1.192579,
+      "pickedBands": 12,
+      "ms": 25325
+    },
+    {
+      "phoneIdx": 1438,
+      "phone": "Cambridge Audio Melomania P100 (ANC on)",
+      "type": "Over-ear",
+      "target": "ief",
+      "rmsBefore": 4.745264,
+      "rmsAfter": 1.192531,
+      "pickedBands": 20,
+      "ms": 27362
+    },
+    {
+      "phoneIdx": 4896,
+      "phone": "ZMF Auteur Classic (ZMF Caldera hybrid earpads)",
+      "type": "Over-ear",
+      "target": "harmanOE2015",
+      "rmsBefore": 7.108655,
+      "rmsAfter": 1.192425,
+      "pickedBands": 10,
+      "ms": 18257
+    },
+    {
+      "phoneIdx": 1438,
+      "phone": "Cambridge Audio Melomania P100 (ANC on)",
+      "type": "Over-ear",
+      "target": "diffuseField",
+      "rmsBefore": 7.319669,
+      "rmsAfter": 1.186216,
+      "pickedBands": 12,
+      "ms": 42323
+    },
+    {
+      "phoneIdx": 1898,
+      "phone": "Auribus Acoustics Sierra Open",
+      "type": "Over-ear",
+      "target": "harmanOE2013",
+      "rmsBefore": 2.041432,
+      "rmsAfter": 1.184502,
+      "pickedBands": 20,
+      "ms": 22075
+    },
+    {
+      "phoneIdx": 1898,
+      "phone": "Auribus Acoustics Sierra Open",
+      "type": "Over-ear",
+      "target": "oratoryOptimum",
+      "rmsBefore": 2.498601,
+      "rmsAfter": 1.181308,
+      "pickedBands": 20,
+      "ms": 19693
+    },
+    {
+      "phoneIdx": 2106,
+      "phone": "Cambridge Audio Melomania P100 (ANC off)",
+      "type": "Over-ear",
+      "target": "diffuseField",
+      "rmsBefore": 9.250266,
+      "rmsAfter": 1.171709,
+      "pickedBands": 12,
+      "ms": 32512
+    },
+    {
+      "phoneIdx": 1984,
+      "phone": "Beyerdynamic T50p (serial number 16912)",
+      "type": "Over-ear",
+      "target": "freeField",
+      "rmsBefore": 7.507544,
+      "rmsAfter": 1.160268,
+      "pickedBands": 12,
+      "ms": 28104
+    },
+    {
+      "phoneIdx": 4030,
+      "phone": "Sennheiser PXC 350",
+      "type": "Over-ear",
+      "target": "rtings",
+      "rmsBefore": 3.091848,
+      "rmsAfter": 1.15094,
+      "pickedBands": 12,
+      "ms": 23114
+    },
+    {
+      "phoneIdx": 2210,
+      "phone": "Creative Outlier Free Pro Plus",
+      "type": "In-ear",
+      "target": "freeField",
+      "rmsBefore": 20.888305,
+      "rmsAfter": 1.15001,
+      "pickedBands": 20,
+      "ms": 16630
+    },
+    {
+      "phoneIdx": 1898,
+      "phone": "Auribus Acoustics Sierra Open",
+      "type": "Over-ear",
+      "target": "diffuseFieldKemar",
+      "rmsBefore": 3.911628,
+      "rmsAfter": 1.144507,
+      "pickedBands": 10,
+      "ms": 19161
+    },
+    {
+      "phoneIdx": 4896,
+      "phone": "ZMF Auteur Classic (ZMF Caldera hybrid earpads)",
+      "type": "Over-ear",
+      "target": "oratoryOptimum",
+      "rmsBefore": 8.183445,
+      "rmsAfter": 1.142961,
+      "pickedBands": 10,
+      "ms": 18053
+    },
+    {
+      "phoneIdx": 4896,
+      "phone": "ZMF Auteur Classic (ZMF Caldera hybrid earpads)",
+      "type": "Over-ear",
+      "target": "freeField",
+      "rmsBefore": 10.030067,
+      "rmsAfter": 1.139433,
+      "pickedBands": 10,
+      "ms": 21616
+    },
+    {
+      "phoneIdx": 1438,
+      "phone": "Cambridge Audio Melomania P100 (ANC on)",
+      "type": "Over-ear",
+      "target": "harmanOE2013",
+      "rmsBefore": 4.520319,
+      "rmsAfter": 1.134906,
+      "pickedBands": 20,
+      "ms": 29289
+    },
+    {
+      "phoneIdx": 1984,
+      "phone": "Beyerdynamic T50p (serial number 16912)",
+      "type": "Over-ear",
+      "target": "diffuseFieldKemar",
+      "rmsBefore": 6.805037,
+      "rmsAfter": 1.133715,
+      "pickedBands": 12,
+      "ms": 34704
+    },
+    {
+      "phoneIdx": 4896,
+      "phone": "ZMF Auteur Classic (ZMF Caldera hybrid earpads)",
+      "type": "Over-ear",
+      "target": "rtings",
+      "rmsBefore": 7.358175,
+      "rmsAfter": 1.12996,
+      "pickedBands": 10,
+      "ms": 14629
+    },
+    {
+      "phoneIdx": 1438,
+      "phone": "Cambridge Audio Melomania P100 (ANC on)",
+      "type": "Over-ear",
+      "target": "rtings",
+      "rmsBefore": 4.061427,
+      "rmsAfter": 1.127727,
+      "pickedBands": 10,
+      "ms": 21866
+    },
+    {
+      "phoneIdx": 1898,
+      "phone": "Auribus Acoustics Sierra Open",
+      "type": "Over-ear",
+      "target": "freeField",
+      "rmsBefore": 4.473065,
+      "rmsAfter": 1.122228,
+      "pickedBands": 10,
+      "ms": 20790
+    },
+    {
+      "phoneIdx": 1898,
+      "phone": "Auribus Acoustics Sierra Open",
+      "type": "Over-ear",
+      "target": "jm1",
+      "rmsBefore": 3.695772,
+      "rmsAfter": 1.121161,
+      "pickedBands": 20,
+      "ms": 22030
+    },
+    {
+      "phoneIdx": 1898,
+      "phone": "Auribus Acoustics Sierra Open",
+      "type": "Over-ear",
+      "target": "harmanOE2015",
+      "rmsBefore": 2.733948,
+      "rmsAfter": 1.118055,
+      "pickedBands": 10,
+      "ms": 19040
+    },
+    {
+      "phoneIdx": 4171,
+      "phone": "Skullcandy SkullCrushers Max Bass",
+      "type": "Over-ear",
+      "target": "soundguys",
+      "rmsBefore": 8.205626,
+      "rmsAfter": 1.117193,
+      "pickedBands": 12,
+      "ms": 32828
+    },
+    {
+      "phoneIdx": 2106,
+      "phone": "Cambridge Audio Melomania P100 (ANC off)",
+      "type": "Over-ear",
+      "target": "diffuseFieldKemar",
+      "rmsBefore": 9.184138,
+      "rmsAfter": 1.115732,
+      "pickedBands": 12,
+      "ms": 36817
+    },
+    {
+      "phoneIdx": 1898,
+      "phone": "Auribus Acoustics Sierra Open",
+      "type": "Over-ear",
+      "target": "soundguys",
+      "rmsBefore": 4.487807,
+      "rmsAfter": 1.110888,
+      "pickedBands": 10,
+      "ms": 21504
+    },
+    {
+      "phoneIdx": 1984,
+      "phone": "Beyerdynamic T50p (serial number 16912)",
+      "type": "Over-ear",
+      "target": "diffuseField",
+      "rmsBefore": 6.781842,
+      "rmsAfter": 1.109736,
+      "pickedBands": 12,
+      "ms": 43032
+    },
+    {
+      "phoneIdx": 4171,
+      "phone": "Skullcandy SkullCrushers Max Bass",
+      "type": "Over-ear",
+      "target": "harmanOE",
+      "rmsBefore": 8.164416,
+      "rmsAfter": 1.106992,
+      "pickedBands": 12,
+      "ms": 28092
+    },
+    {
+      "phoneIdx": 1898,
+      "phone": "Auribus Acoustics Sierra Open",
+      "type": "Over-ear",
+      "target": "ief",
+      "rmsBefore": 3.24197,
+      "rmsAfter": 1.10427,
+      "pickedBands": 10,
+      "ms": 18360
+    },
+    {
+      "phoneIdx": 3597,
+      "phone": "Oladance OWS Sport (ANC off)",
+      "type": "Earbud",
+      "target": "rtings",
+      "rmsBefore": 16.225158,
+      "rmsAfter": 1.103978,
+      "pickedBands": 12,
+      "ms": 39153
+    },
+    {
+      "phoneIdx": 2390,
+      "phone": "Edifier WH950NB (ANC on, dynamic mode)",
+      "type": "Over-ear",
+      "target": "harmanOE2015",
+      "rmsBefore": 4.142004,
+      "rmsAfter": 1.102783,
+      "pickedBands": 20,
+      "ms": 16693
+    },
+    {
+      "phoneIdx": 2390,
+      "phone": "Edifier WH950NB (ANC on, dynamic mode)",
+      "type": "Over-ear",
+      "target": "diffuseField",
+      "rmsBefore": 7.683629,
+      "rmsAfter": 1.08987,
+      "pickedBands": 12,
+      "ms": 33967
+    },
+    {
+      "phoneIdx": 2106,
+      "phone": "Cambridge Audio Melomania P100 (ANC off)",
+      "type": "Over-ear",
+      "target": "harmanIE",
+      "rmsBefore": 4.980163,
+      "rmsAfter": 1.0888,
+      "pickedBands": 12,
+      "ms": 30462
+    }
+  ]
+}
