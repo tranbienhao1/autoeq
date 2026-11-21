@@ -1,18 +1,18 @@
-name: Full AutoEQ 60K Sweep (20-Shard Matrix)
+name: Full AutoEQ 60K Sweep (40-Shard Best-Of Matrix)
 
 on:
   workflow_dispatch:
     inputs:
       mode:
-        description: "Chế độ giải: '10' (chuẩn 10-band sweep) hoặc 'bestof' (10 + 12-seeded + 20 band)"
+        description: "Chế độ giải: 'bestof' (tối ưu tối đa 10 + 12-seeded + 20 band) hoặc '10' (chuẩn 10-band)"
         required: false
-        default: "10"
+        default: "bestof"
         type: choice
         options:
-          - "10"
           - "bestof"
+          - "10"
       start_phone:
-        description: "Chỉ số tai nghe bắt đầu (0 = quét sạch toàn bộ 60.000 cặp; 1563 = chỉ quét 41.244 cặp còn lại)"
+        description: "Chỉ số tai nghe bắt đầu (0 = quét sạch toàn bộ 60.000 cặp)"
         required: false
         default: "0"
         type: string
@@ -22,7 +22,7 @@ on:
         default: "5000"
         type: string
       commit_results:
-        description: "Tự động commit sweep-results/ (REPORT.md, summary.json, results_all.jsonl.gz) vào nhánh"
+        description: "Tự động commit sweep-results/ vào nhánh sau khi hoàn tất"
         required: false
         default: true
         type: boolean
@@ -55,13 +55,13 @@ concurrency:
 
 jobs:
   sweep_shard:
-    name: "Sweep Shard ${{ matrix.shard }} / 20"
+    name: "Sweep Shard ${{ matrix.shard }} / 40"
     runs-on: ubuntu-latest
-    timeout-minutes: 90
+    timeout-minutes: 240
     strategy:
       fail-fast: false
       matrix:
-        shard: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19]
+        shard: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39]
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -76,12 +76,12 @@ jobs:
 
       - name: Run multi-threaded shard ${{ matrix.shard }}
         run: |
-          MODE="${{ inputs.mode || '10' }}"
+          MODE="${{ inputs.mode || 'bestof' }}"
           START_PHONE="${{ inputs.start_phone || '0' }}"
           END_PHONE="${{ inputs.end_phone || '5000' }}"
           node scripts/sweep/run_shard.js \
             --shard "${{ matrix.shard }}" \
-            --shards 20 \
+            --shards 40 \
             --start-phone "${START_PHONE}" \
             --end-phone "${END_PHONE}" \
             --mode "${MODE}" \
@@ -111,7 +111,7 @@ jobs:
         with:
           node-version: "22"
 
-      - name: Download all 20 shard artifacts
+      - name: Download all 40 shard artifacts
         uses: actions/download-artifact@v4
         with:
           pattern: sweep-shard-*
@@ -132,24 +132,24 @@ jobs:
       - name: Upload complete 60K dataset & report artifact
         uses: actions/upload-artifact@v4
         with:
-          name: autoeq-full-sweep-60k-results
+          name: autoeq-full-sweep-60k-bestof-results
           path: sweep-results/*
           if-no-files-found: error
           retention-days: 90
 
-      - name: Commit sweep-results/ back to branch (optional)
-        if: ${{ inputs.commit_results != false }}
+      - name: Commit sweep-results/ back to branch
+        if: ${{ github.event_name != 'workflow_dispatch' || inputs.commit_results != false }}
         continue-on-error: true
         run: |
           TARGET_BRANCH="${GITHUB_HEAD_REF:-${GITHUB_REF_NAME}}"
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add sweep-results/REPORT.md sweep-results/summary.json sweep-results/results_all.jsonl.gz
+          git add sweep-results/REPORT.md sweep-results/summary.json sweep-results/all_phones_summary.csv sweep-results/results_all.jsonl.gz
           if git diff --cached --quiet; then
             echo "No changes in sweep-results/ to commit."
             exit 0
           fi
-          git commit -m "chore(sweep): update 60k headphone-target sweep results [skip ci]"
+          git commit -m "chore(sweep): update 60k best-of headphone-target results [skip ci]"
           git fetch origin "${TARGET_BRANCH}"
           git rebase "origin/${TARGET_BRANCH}"
           git push origin "HEAD:${TARGET_BRANCH}"

@@ -128,6 +128,7 @@ async function main() {
   const remAfter = [];  // phoneIdx >= splitCheckpointPhone (remaining 41,244 pairs)
   const byTarget = {};
   const byType = {};
+  const byPickedBands = {};
   const byPhone = new Map();
 
   let totalViol = 0;
@@ -148,13 +149,20 @@ async function main() {
     if (!byType[r.type]) byType[r.type] = [];
     byType[r.type].push(r.rmsAfter);
 
+    const pbKey = String(r.pickedBands || 10);
+    byPickedBands[pbKey] = (byPickedBands[pbKey] || 0) + 1;
+
     let phEntry = byPhone.get(r.phoneIdx);
     if (!phEntry) {
-      phEntry = { phoneIdx: r.phoneIdx, phone: r.phone, type: r.type, rig: r.rig, source: r.source, count: 0, sumAfter: 0, maxAfter: 0, worstTarget: "" };
+      phEntry = { phoneIdx: r.phoneIdx, phone: r.phone, brand: r.brand, type: r.type, rig: r.rig, source: r.source, count: 0, sumBefore: 0, sumAfter: 0, minAfter: Infinity, maxAfter: 0, worstTarget: "", targetRms: {}, targetBands: {} };
       byPhone.set(r.phoneIdx, phEntry);
     }
     phEntry.count++;
+    phEntry.sumBefore += r.rmsBefore;
     phEntry.sumAfter += r.rmsAfter;
+    phEntry.targetRms[r.target] = r.rmsAfter;
+    phEntry.targetBands[r.target] = r.pickedBands || 10;
+    if (r.rmsAfter < phEntry.minAfter) phEntry.minAfter = r.rmsAfter;
     if (r.rmsAfter > phEntry.maxAfter) {
       phEntry.maxAfter = r.rmsAfter;
       phEntry.worstTarget = r.target;
@@ -167,6 +175,37 @@ async function main() {
     if (!minPair || r.rmsAfter < minPair.rmsAfter) minPair = r;
     if (!maxPair || r.rmsAfter > maxPair.rmsAfter) maxPair = r;
   }
+
+  // Write compact CSV of all headphones x 12 targets for Excel / Google Sheets
+  const targetCols = Object.keys(byTarget);
+  const csvEsc = (v) => {
+    const s = String(v == null ? "" : v);
+    return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+  };
+  const csvLines = [
+    ["phoneIdx", "phone", "brand", "type", "rig", "source", "meanRmsBefore", "meanRmsAfter", "minRmsAfter", "maxRmsAfter", "worstTarget", ...targetCols.map((t) => `${t}_rms`), ...targetCols.map((t) => `${t}_bands`)].join(","),
+  ];
+  for (const p of Array.from(byPhone.values()).sort((a, b) => a.phoneIdx - b.phoneIdx)) {
+    csvLines.push(
+      [
+        p.phoneIdx,
+        csvEsc(p.phone),
+        csvEsc(p.brand),
+        csvEsc(p.type),
+        csvEsc(p.rig),
+        csvEsc(p.source),
+        roundN(p.sumBefore / p.count, 4),
+        roundN(p.sumAfter / p.count, 4),
+        roundN(p.minAfter, 4),
+        roundN(p.maxAfter, 4),
+        csvEsc(p.worstTarget),
+        ...targetCols.map((t) => (p.targetRms[t] != null ? roundN(p.targetRms[t], 4) : "")),
+        ...targetCols.map((t) => (p.targetBands[t] != null ? p.targetBands[t] : "")),
+      ].join(",")
+    );
+  }
+  const csvPath = path.join(args.outDir, "all_phones_summary.csv");
+  fs.writeFileSync(csvPath, csvLines.join("\n") + "\n", "utf8");
 
   const phonesComplete12 = Array.from(byPhone.values()).filter((p) => p.count === 12).length;
   const worst50Pairs = rows
@@ -221,6 +260,7 @@ async function main() {
     totalViolations: totalViol,
     totalNullBoosts: totalNullBoost,
     hardPairsOver1500ms: hardPairs,
+    byPickedBands,
     rmsBefore: computeStats(allBefore),
     rmsAfter: computeStats(allAfter),
     segments: {
@@ -244,6 +284,10 @@ async function main() {
 
   // Build Markdown report
   const gzSizeMb = (fs.statSync(allGzPath).size / (1024 * 1024)).toFixed(2);
+  const pickedDesc = Object.entries(byPickedBands)
+    .sort((a, b) => Number(a[0]) - Number(b[0]))
+    .map(([b, c]) => `${b} band: ${c.toLocaleString("en-US")} (${((100 * c) / Math.max(1, rows.length)).toFixed(1)}%)`)
+    .join(" · ");
   const md = [
     "# Báo cáo Tổng kết Full Sweep Web AutoEQ (`60.000` cặp = `5.000` tai nghe × `12` target)",
     "",
@@ -251,8 +295,9 @@ async function main() {
     `- **Phiên bản mã nguồn**: HTML MD5 \`${summary.htmlMd5}\` · Solver Core MD5 \`${summary.solverCoreMd5}\` · Chế độ: \`${summary.mode}\``,
     `- **Hạ tầng song song**: \`${summary.shardsCount}\` shards · Shard lâu nhất: \`${summary.maxShardWallSec}s\` (~${(summary.maxShardWallSec / 60).toFixed(1)} phút) · Tổng thời gian shard gộp: \`${summary.sumShardWallSec}s\``,
     `- **Tổng số cặp đã giải**: **\`${summary.totalPairs.toLocaleString("en-US")}\`** (\`${summary.phonesComplete12}/${summary.uniquePhones}\` tai nghe đủ 12/12 target)`,
+    `- **Phân bố số band được chọn**: ${pickedDesc}`,
     `- **Kiểm định an toàn**: Vi phạm giới hạn = **\`${summary.totalViolations}\`** · Null-boost = **\`${summary.totalNullBoosts}\`** · Trùng lặp = **\`${summary.duplicates}\`**`,
-    `- **Dữ liệu nén**: \`results_all.jsonl.gz\` (\`${gzSizeMb} MB\`)`,
+    `- **Dữ liệu nén**: \`results_all.jsonl.gz\` (\`${gzSizeMb} MB\`) · Bảng tổng hợp 5.000 tai nghe: \`all_phones_summary.csv\``,
     "",
     "## 1. Thống kê sai số khớp mục tiêu (RMS dB)",
     "",
