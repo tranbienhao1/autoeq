@@ -122,18 +122,32 @@ function aeSmooth(vals, freqs, octAt, perOct){
    Bỏ qua dòng header/comment; dòng trông như dữ liệu mà đọc không được -> lỗi rõ ràng kèm số dòng. */
 function aeParseMeasurement(text){
   var lines = String(text).split(/\r?\n/), pts=[], bad=[], skipped=0;
+  function isMalformedNumericToken(t){
+    return /^[+-]?(?:nan|inf(?:inity)?)$/i.test(t) || /^[+-]?(?:\d|\.\d)/.test(t);
+  }
   for (var li=0; li<lines.length; li++){
     var raw = lines[li].trim();
     if (!raw){ continue; }
     var first = raw.charAt(0);
     if (first==="*" || first==="#" || first===";"){ skipped++; continue; }
-    var toks = raw.split(/[,;\t ]+/).filter(function(x){ return x.length>0; });
-    var f = parseFloat(toks[0]), v = toks.length>1 ? parseFloat(toks[1]) : NaN;
+    var delim = raw.indexOf("\t") >= 0 ? "\t" : (raw.indexOf(";") >= 0 ? ";" : (raw.indexOf(",") >= 0 ? "," : " "));
+    var toks = (delim === " " ? raw.split(/\s+/) : raw.split(delim)).map(function(x){ return x.replace(/^"+|"+$/g, "").trim(); }).filter(function(x){ return x.length>0; });
+    if (toks.length < 2){
+      if (toks.length === 1 && isMalformedNumericToken(toks[0])) bad.push(li+1);
+      else skipped++;
+      continue;
+    }
+    function parseNum(t){
+      if ((delim === ";" || delim === "\t" || delim === " ") && /^[+-]?\d+,\d+(?:[eE][+-]?\d+)?$/.test(t)) t = t.replace(",", ".");
+      if (!/^[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?$/.test(t)) return NaN;
+      return Number(t);
+    }
+    var f = parseNum(toks[0]), v = parseNum(toks[1]);
     if (isFinite(f) && isFinite(v)){
       if (f>=10 && f<=24000 && v>-100 && v<200){ pts.push([f,v]); continue; }
       bad.push(li+1); continue; /* số nhưng ngoài dải hợp lệ */
     }
-    if (/[0-9]/.test(first)){ bad.push(li+1); } /* bắt đầu bằng số mà không đọc được = dòng dữ liệu hỏng */
+    if (isMalformedNumericToken(toks[0]) || /^[+-]?(?:nan|inf(?:inity)?)$/i.test(toks[1])){ bad.push(li+1); }
     else skipped++; /* header chữ */
   }
   if (bad.length) throw new Error("Dòng dữ liệu không đọc được ở dòng: "+bad.slice(0,8).join(", ")+(bad.length>8?"…":"")+" — file phải có 2 cột: tần số (Hz) và SPL (dB).");

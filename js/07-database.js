@@ -89,10 +89,14 @@ function dbParseMeasurement(text, filename){
     }
     var delim = raw.indexOf("\t") >= 0 ? "\t" : (raw.indexOf(";") >= 0 ? ";" : (raw.indexOf(",") >= 0 ? "," : " "));
     var toks = (delim === " " ? raw.split(/\s+/) : raw.split(delim)).map(function(t){ return t.replace(/^"+|"+$/g, "").trim(); }).filter(function(t){ return t.length > 0; });
-    if (toks.length < 2){ if (/[0-9]/.test(first)) bad.push(li + 1); else skipped++; continue; }
+    function isMalformedNumericToken(t){
+      return /^[+-]?(?:nan|inf(?:inity)?)$/i.test(t) || /^[+-]?(?:\d|\.\d)/.test(t);
+    }
+    if (toks.length < 2){ if (toks.length === 1 && isMalformedNumericToken(toks[0])) bad.push(li + 1); else skipped++; continue; }
     function num(t){
-      if ((delim === ";" || delim === "\t" || delim === " ") && /^-?\d+,\d+$/.test(t)) t = t.replace(",", ".");
-      return parseFloat(t);
+      if ((delim === ";" || delim === "\t" || delim === " ") && /^[+-]?\d+,\d+(?:[eE][+-]?\d+)?$/.test(t)) t = t.replace(",", ".");
+      if (!/^[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?$/.test(t)) return NaN;
+      return Number(t);
     }
     var f = num(toks[0]), v = num(toks[1]);
     if (isFinite(f) && isFinite(v)){
@@ -105,7 +109,7 @@ function dbParseMeasurement(text, filename){
       else if (low.indexOf("spl") >= 0) headerKind = "squiglink";
       skipped++; continue;
     }
-    if (/[0-9]/.test(first)) bad.push(li + 1); else skipped++;
+    if (isMalformedNumericToken(toks[0]) || /^[+-]?(?:nan|inf(?:inity)?)$/i.test(toks[1])) bad.push(li + 1); else skipped++;
   }
   if (bad.length) throw new Error("Dòng dữ liệu không đọc được ở dòng: " + bad.slice(0, 8).join(", ") + (bad.length > 8 ? "…" : "") + " — file đo phải có 2 cột đầu là tần số (Hz) và SPL (dB).");
   if (pts.length < 8) throw new Error("Chỉ tìm thấy " + pts.length + " điểm đo hợp lệ (cần tối thiểu 8) — không nhận diện được dữ liệu đo trong file này.");
