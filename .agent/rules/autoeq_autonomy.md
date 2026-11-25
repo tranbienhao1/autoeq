@@ -6,7 +6,8 @@ alwaysApply: true
 
 # QUY TẮC VẬN HÀNH TỰ ĐỘNG 24/7 (`tranbienhao1/autoeq`, nhánh `autoeq-autopilot`)
 
-1. **Chế độ Thực Thi Không Gián Đoạn & Nối Đuôi 1 Phút (`Zero-Stop + 60s Tail-Chaining`):**
+1. **Chế độ Thực Thi Không Gián Đoạn, Teamwork & Nối Đuôi 1 Phút (`Zero-Stop + Teamwork + 60s Tail-Chaining`):**
+   - Mỗi chu kỳ 30 phút ủy quyền thực thi cho đội đa tác tử `teamwork` với cờ `[skip-interview]` (`invoke_subagent(TypeName="teamwork", Role="AutoEQ Cycle Team", Prompt="[skip-interview] ...")`) để không dừng chờ phỏng vấn. Trước khi khởi chạy, luôn kiểm tra `manage_subagents(Action="list")` và khóa `.agent/RUN.LOCK` để tránh chạy đè (bỏ qua nhịp nếu một phiên `teamwork` trước đó vẫn đang chạy).
    - Luôn tự động chạy kiểm tra cú pháp, unit test (`node --test`), Verification Gate (`node scripts/verify_autoeq.js`) và `git commit` + `git push origin HEAD` trên nhánh `autoeq-autopilot` (KHÔNG checkout `main`).
    - Tuyệt đối KHÔNG dùng lệnh `sleep` trong bash/terminal để chờ. Mọi nhịp chờ hậu kiểm bắt buộc dùng công cụ `schedule` gốc của Antigravity:
      - Chu kỳ chính 30 phút: `CronExpression="*/30 * * * *"`, `IsDaemon=true`.

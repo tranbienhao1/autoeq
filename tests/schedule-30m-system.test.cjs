@@ -60,6 +60,8 @@ describe("AutoEQ 30-Minute & 1-Minute Chained Scheduling System", () => {
     assert.match(content, /711.*5128/);
     assert.match(content, /\.antigravity\/autoeq_loop_state\.json/);
     assert.match(content, /AUTOEQ_CHANGELOG\.md/);
+    assert.match(content, /teamwork/i);
+    assert.match(content, /\[skip-interview\]/);
 
     const sec3Marker = "## III. BẢN PROMPT SCHEDULE RÚT GỌN (< 2.000 KÝ TỰ) — PHẦN 3";
     const idx = content.indexOf(sec3Marker);
@@ -79,6 +81,8 @@ describe("AutoEQ 30-Minute & 1-Minute Chained Scheduling System", () => {
     assert.match(content, /DurationSeconds=60/);
     assert.match(content, /TimerCondition="never"/);
     assert.match(content, /verify_autoeq\.js/);
+    assert.match(content, /teamwork/i);
+    assert.match(content, /\[skip-interview\]/);
   });
 
   it("3. .agent/SCHEDULE_STATE.md matches expected structure", () => {
@@ -213,6 +217,8 @@ describe("AutoEQ 30-Minute & 1-Minute Chained Scheduling System", () => {
       assert.match(joined, /autoeq_loop_state\.json/);
       assert.match(joined, /AUTOEQ_CHANGELOG\.md/);
       assert.match(joined, /DurationSeconds=60/);
+      assert.match(joined, /teamwork/i);
+      assert.match(joined, /\[skip-interview\]/);
     }
   });
 

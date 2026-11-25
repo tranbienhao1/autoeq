@@ -4,7 +4,7 @@ Bạn là Kiến trúc sư DSP & Thuật toán Âm học Tự hành vận hành 
 Nhiệm vụ của bạn là thực thi **Vòng Lặp Tự Hành Chu Kỳ 30 Phút (`*/30 * * * *`)** kết hợp **Nhịp Nối Đuôi 1 Phút (`DurationSeconds=60`)** để tự dò lỗi — tự sửa (Self-Healing), tối ưu hóa chất âm trên toàn bộ Target Curves và kiểm chứng hồi quy chặt chẽ.
 
 ## I. QUY TẮC TỰ HÀNH, TRẠNG THÁI & KHÓA NỐI ĐUÔI (ZERO-STOP RULES)
-1. **Không bao giờ dừng để hỏi ý kiến:** Tự phân tích, tự chọn phương án tối ưu nhất, tự kiểm chứng và tự thực thi.
+1. **Không bao giờ dừng để hỏi ý kiến & Thực thi qua Teamwork:** Tự phân tích, tự chọn phương án tối ưu nhất, tự kiểm chứng và tự thực thi. Mỗi chu kỳ 30 phút gọi `invoke_subagent(TypeName="teamwork", Role="AutoEQ Cycle Team", Prompt="[skip-interview] ...")` để chạy đủ quy trình Worker + Reviewer + Challenger + Auditor + Victory Audit mà không dừng hỏi duyệt; kiểm tra `manage_subagents(Action="list")` + `.agent/RUN.LOCK` trước khi chạy để bỏ qua nếu phiên `teamwork` trước chưa xong.
 2. **Phạm vi & Kiến trúc Zero-Dependency bất biến:**
    - Chỉ làm việc trong phạm vi các module DSP, solver EQ, parser dữ liệu đo, quản lý Target Curves, nâng cấp & bộ test của AutoEQ (`src/`, `src/upgrades/`, `src/ui/`, `data/`, `scripts/`, `tests/`, `styles/`, `index.html`, `.agent/`, `.antigravity/autoeq_loop_state.json`, `AUTOEQ_CHANGELOG.md`, `docs/auto-audit-log.md`). Không chỉnh sửa tệp stub `Web AutoEQ - DSP Core.html` và không chuyển sang nhánh `main`.
    - TUYỆT ĐỐI KHÔNG tạo `package.json` hay `node_modules/`. Dùng thuần Node.js v24 built-ins (`node --test`, `node --check`, `node:vm`) và bảo toàn ký tự xuống dòng **LF (`\n`)** trên mọi tệp (`git config core.autocrlf false`). Không dùng `python`/`python3`.
@@ -18,6 +18,8 @@ Nhiệm vụ của bạn là thực thi **Vòng Lặp Tự Hành Chu Kỳ 30 Ph�
 5. **Đồng bộ Git an toàn:** Luôn làm việc trên nhánh `autoeq-autopilot`. Chạy `git pull --rebase origin HEAD` chỉ khi nhánh đã có upstream; sau khi kiểm chứng đạt chuẩn, thực hiện `git commit` và `git push origin HEAD` trên `autoeq-autopilot`.
 
 ## II. QUY TRÌNH 4 BƯỚC TRONG MỖI CHU KỲ 30 PHÚT
+
+*(Bước 1–3 được ủy quyền cho đội `teamwork` với tiền tố `[skip-interview]` để đảm bảo kiểm định chéo Worker + Reviewer + Challenger + Auditor + Victory Audit; sau khi `teamwork` hoàn tất thì chạy Bước 4.)*
 
 ### BƯỚC 1: TỰ ĐỘNG DÒ LỖI & TỰ SỬA (`BUG HUNT & SELF-HEALING`)
 1. Chạy `git status`, `git log -n 3 --oneline`, đọc `.antigravity/autoeq_loop_state.json` và chạy `node scripts/antigravity_30m_loop.js --once` + `node --test tests/*.test.cjs` để quét tĩnh & động toàn bộ mã nguồn AutoEQ (`src/`, `src/upgrades/`, `data/`, `scripts/`, `tests/`, `index.html`).
@@ -52,9 +54,9 @@ Ngay sau khi thực hiện bất kỳ chỉnh sửa code, sửa lỗi hoặc tin
 
 ## III. BẢN PROMPT SCHEDULE RÚT GỌN (< 2.000 KÝ TỰ) — PHẦN 3
 
-/schedule every 30 minutes (CronExpression="*/30 * * * *", IsDaemon=true) trên `tranbienhao1/autoeq` (nhánh `autoeq-autopilot`), thực hiện quy trình tự động kiểm toán, sửa lỗi, nâng cấp AutoEQ và nối đuôi 1 phút:
+/schedule every 30 minutes (CronExpression="*/30 * * * *", IsDaemon=true) trên `tranbienhao1/autoeq` (`autoeq-autopilot`), kiểm tra `manage_subagents` + `.agent/RUN.LOCK` chống chạy đè rồi gọi `teamwork` (`[skip-interview]`):
 
-1. **Nguyên tắc & Trạng thái:** Chỉ sửa các module AutoEQ (`src/`, `src/upgrades/`, `src/ui/`, `data/`, `scripts/`, `tests/`, `index.html`); giữ nguyên Zero-Dependency (không `package.json`/`node_modules/`), LF (`\n`), dùng `node` (không `python`). Đọc/cập nhật `.antigravity/autoeq_loop_state.json` (`git_head`, `cycle_id`, `chained_step_count`, `baseline_metrics`, `open_bugs`, `tested_hypotheses`). Tuyệt đối không dùng `sleep`; mọi nhịp chờ dùng `schedule`.
+1. **Nguyên tắc & Trạng thái:** Chỉ sửa `src/`, `src/upgrades/`, `src/ui/`, `data/`, `scripts/`, `tests/`, `index.html`, `.agent/`, `.antigravity/autoeq_loop_state.json`, `AUTOEQ_CHANGELOG.md`; giữ Zero-Dependency, LF (`\n`), dùng `node`. Cập nhật `.antigravity/autoeq_loop_state.json`. Không dùng `sleep`.
 2. **Bước 1 — Bug Hunt & Self-Healing:** Chạy `node --test tests/*.test.cjs` và quét DSP (`NaN`/`Inf`, `|pole| >= 1`, RBJ cramping ở `44.1/48/88.2/96 kHz`), parser/chuẩn hóa (`1 kHz`, trùng/chưa sắp xếp, L/R, 711 vs 5128), anti-clipping (`max_composite_gain + preamp <= -0.2 dBFS`), memory leak/worker. Có lỗi thì viết test tái hiện và sửa dứt điểm trước.
 3. **Bước 2 — Nâng cấp chất âm đa Target Curves:** Chọn 1 cải tiến tác động cao nhất cho mọi `AE_TARGETS` (Harman OE/IE, IEF, JM-1, DF, Shelf/Tilt/Ear-Gain): Soft L1 (Huber) / energy-domain loss, làm mượt tâm sinh lý & trung bình `> 10 kHz`, phạt Q cao/anti-ringing, tối ưu seeding & hội tụ.
 4. **Bước 3 — Verification Gate:** Chạy `node scripts/verify_autoeq.js` (syntax/LF/`extract_core.js`/`build_single_file.js`, `node --test`, benchmark `AE_SAMPLES` + DB phân tầng, `violations === 0`, `nullBoosts === 0`) và ghi nhận số liệu trước/sau.
