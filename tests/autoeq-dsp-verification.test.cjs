@@ -205,6 +205,35 @@ describe("AutoEQ DSP, Anti-Clipping, Parsers & Multi-Target Verification", () =>
       assert.ok(headroom <= -1.0 + 1e-3, `CEIL_DB=-1.0 expected, got ${headroom.toFixed(4)} dBFS`);
     }
 
+    // BUG-03 regression: 16 kHz +12 dB highshelf @ 88.2 / 96 kHz must not clip above 20 kHz
+    const savedBands = vmCtx.bands.map((b) => ({ ...b }));
+    try {
+      for (let i = 0; i < vmCtx.bands.length; i++) {
+        vmCtx.bands[i].on = i === 0;
+        vmCtx.bands[i].type = "highshelf";
+        vmCtx.bands[i].freq = 16000;
+        vmCtx.bands[i].gain = i === 0 ? 12 : 0;
+        vmCtx.bands[i].q = 0.707;
+      }
+      vmCtx.BAND_CC.length = 0;
+      vmCtx.GRID_TOT = {};
+      for (const fsRate of [44100, 48000, 88200, 96000]) {
+        vmCtx.computeAutoPre(fsRate);
+        const nyq = fsRate / 2;
+        const probes = [0, 20, 1000, 16000, 20000];
+        if (nyq > 20000) probes.push(30000, 40000, 47000, nyq);
+        for (const f of probes) {
+          const hr = vmCtx.totalDbAt(f, fsRate) + vmCtx.autoPreDb;
+          assert.ok(hr <= -1.0 + 1e-3, `BUG-03 regression at fs=${fsRate} f=${f}: ${hr.toFixed(4)} dBFS`);
+          assert.ok(hr <= -0.2 + 1e-6, `BUG-03 anti-clipping violated at fs=${fsRate} f=${f}: ${hr.toFixed(4)} dBFS`);
+        }
+      }
+    } finally {
+      for (let i = 0; i < vmCtx.bands.length; i++) Object.assign(vmCtx.bands[i], savedBands[i]);
+      vmCtx.BAND_CC.length = 0;
+      vmCtx.GRID_TOT = {};
+    }
+
     // Verify hwPreamp on solved sample bands satisfies <= -0.2 dBFS
     const prep = core.aePrepare(core.AE_SAMPLES[0].knots);
     const solved = core.aeComputeOnce(prep, "harmanOE", { tilt: 0, bass: 0, ear: 0 }, 10, false, 48000);
@@ -261,6 +290,34 @@ describe("AutoEQ DSP, Anti-Clipping, Parsers & Multi-Target Verification", () =>
     const dbParsed = vmCtx.dbParseMeasurement(commaCsv, "test-5128.csv");
     assert.equal(dbParsed.rigGuess, "5128");
     assert.equal(dbParsed.points[0][1], 75.5);
+
+    // BUG-02 regression: aeParseMeasurement handles European comma decimals and rejects NaN/Infinity lines
+    const aeCommaParsed = vmCtx.aeParseMeasurement(commaCsv);
+    assert.equal(aeCommaParsed.points[0][1], 75.5);
+    const aeCommaSemicolon = [
+      "frequency,raw",
+      "B&K 5128",
+      "20,0; -3,5",
+      "50,0; -1,2",
+      "100,0; 0,0",
+      "250,0; 0,5",
+      "500,0; -0,4",
+      "1000,0; -2,5",
+      "2500,0; 3,1",
+      "6000,0; 1,2",
+      "12000,0; -1,0"
+    ].join("\n");
+    const aeSemiParsed = vmCtx.aeParseMeasurement(aeCommaSemicolon);
+    const semi1k = aeSemiParsed.points.find((p) => p[0] === 1000);
+    assert.deepEqual([...semi1k], [1000, -2.5]);
+
+    const nanMeas = "20 80\n50 80\n100 80\n200 80\n400 80\nNaN 80\n1000 80\n2000 80\n4000 80\n8000 80";
+    const infMeas = "20 80\n50 80\n100 80\n200 80\n400 80\nInfinity 80\n1000 80\n2000 80\n4000 80\n8000 80";
+    const valNanMeas = "20 80\n50 80\n100 80\n200 80\n400 80\n1000 NaN\n2000 80\n4000 80\n8000 80";
+    for (const badTxt of [nanMeas, infMeas, valNanMeas]) {
+      assert.throws(() => vmCtx.aeParseMeasurement(badTxt), /không đọc được/);
+      assert.throws(() => vmCtx.dbParseMeasurement(badTxt, "bad.txt"), /không đọc được/);
+    }
 
     // Malformed / short measurement throws explicit Error
     assert.throws(() => vmCtx.aeParseMeasurement("20 80\n1000 80\n"), /tối thiểu 8/);

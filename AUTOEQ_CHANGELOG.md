@@ -19,6 +19,23 @@ Nhật ký chính thức cho vòng lặp tự hành chu kỳ 30 phút (`*/30 * *
 
 ---
 
+## Cycle #1 — 2026-11-25T20:25:00Z (BUG_HUNT)
+
+- **Git Head (Before -> After):** `3818ff9` -> `autoeq-autopilot` (pending commit & push)
+- **Chained Steps Used:** `1` / 3 (reset `chained_step_count = 0`)
+- **Hypothesis / Target:** Khắc phục `BUG-02` (`aeParseMeasurement` tách nhầm thập phân dấu phẩy châu Âu và bỏ qua dòng `NaN`/`Infinity`) và `BUG-03` (`computeAutoPre` chỉ quét 20 Hz..20 kHz, bỏ sót đỉnh boost >20 kHz tại 88.2/96 kHz).
+- **Root Cause & Changes:**
+  - `src/03-autoeq-solver.js` & `src/06-database-export.js`: Đồng bộ `aeParseMeasurement` với `dbParseMeasurement` theo thứ tự delimiter `\t` > `;` > `,` > khoảng trắng, xử lý số thập phân dấu phẩy châu Âu (`"1000,0; -2,5"` -> `[1000, -2.5]`), và từ chối rõ ràng dòng chứa `NaN`/`Infinity`.
+  - `src/01-dsp-core.js`: Mở rộng `computeAutoPre(fs)` quét dải cận âm `[0 .. 20 Hz)` và siêu âm `(20 kHz .. Nyquist]` khi `fs > 40 kHz`, giữ `max_composite_gain + preamp <= -0.2 dBFS` (trần `-1.0 dBFS`).
+  - `tests/autoeq-dsp-verification.test.cjs`: Bổ sung test hồi quy cho `BUG-02` và `BUG-03` (`16 kHz +12 dB highshelf @ 44.1/48/88.2/96 kHz`).
+- **Before vs After Metrics (Verification Gate):**
+  - `AE_SAMPLES` (36 pairs): `rmsAfterMean` `0.1107` -> `0.1107` dB (`violations: 0`, `nullBoosts: 0`)
+  - `Stratified DB` (600 pairs): `rmsAfterMean` `0.3347` -> `0.3347` dB, `p95` `0.4886` -> `0.4886` dB (`violations: 0`, `nullBoosts: 0`)
+  - `node --test tests/*.test.cjs`: `15/15` PASS
+- **Status:** `PASSED & COMMITTED & PUSHED`
+
+---
+
 ## Template Ghi Nhận Chu Kỳ Mới (`Cycle #N`)
 
 ```markdown

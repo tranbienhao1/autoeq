@@ -553,17 +553,34 @@ function computeAutoPre(fs){
      thật tới ~0,009 dB (band test +6 dB/Q1.41 tại 1 kHz: đỉnh lưới 5,9911 dB so với
      đỉnh thật 6,0000 dB) nên pre-amp tính ra thiếu headroom đúng ngần ấy. Lưới 960
      điểm cho đỉnh 5,9997 dB; chi phí không đáng kể vì gridTotalDb cache theo band. */
-  var tot = gridTotalDb(960, fs), max = -Infinity, mf = 0;
+  var nyq = (isFinite(fs) && fs > 0) ? fs * 0.5 : 24000;
+  var tot = gridTotalDb(960, fs), max = -Infinity, mf = 0, refineStepR = Math.pow(1000, 1/960);
   for (var k = 0; k <= 960; k++){
     if (tot[k] > max){ max = tot[k]; mf = 20*Math.pow(1000, k/960); } /* 20 Hz → 20 kHz, log */
   }
+  /* Quét dải cận âm [0 .. 20 Hz) để bắt đỉnh lowshelf dưới 20 Hz */
+  var subStepR = Math.pow(20, 1/16);
+  var sub0 = totalDbAt(0, fs);
+  if (sub0 > max){ max = sub0; mf = 0; refineStepR = subStepR; }
+  for (var sk = 0; sk < 16; sk++){
+    var sf = Math.pow(20, sk/16), sv = totalDbAt(sf, fs);
+    if (sv > max){ max = sv; mf = sf; refineStepR = subStepR; }
+  }
+  /* Quét dải siêu âm (20 kHz .. Nyquist] khi fs > 40 kHz (ví dụ 88.2 / 96 kHz) */
+  if (nyq > 20000){
+    var ultraStepR = Math.pow(nyq / 20000, 1/128);
+    for (var uk = 1; uk <= 128; uk++){
+      var uf = 20000 * Math.pow(nyq / 20000, uk/128), uv = totalDbAt(uf, fs);
+      if (uv > max){ max = uv; mf = uf; refineStepR = ultraStepR; }
+    }
+  }
   /* Tinh chỉnh đỉnh cục bộ (2026-10-31): đỉnh thật của một band hẹp có thể nằm
-     giữa hai điểm lưới 960 (lưới hụt tối đa ~0,01 dB ở đỉnh nhọn) — chạy
+     giữa hai điểm lưới (lưới hụt tối đa ~0,01 dB ở đỉnh nhọn) — chạy
      golden-section trên totalDbAt thật quanh điểm lưới cao nhất để maxPosDb
      và pre-amp bám đỉnh thật; chỉ nhận kết quả nếu cao hơn đỉnh lưới. */
   if (isFinite(max) && mf > 0){
     try {
-      var stepR = Math.pow(1000, 1/960), ga = mf/stepR, gb = mf*stepR, gr = (Math.sqrt(5)-1)/2;
+      var ga = Math.max(0, mf/refineStepR), gb = Math.min(nyq, mf*refineStepR), gr = (Math.sqrt(5)-1)/2;
       var gc1 = gb - gr*(gb-ga), gc2 = ga + gr*(gb-ga);
       var gv1 = totalDbAt(gc1, fs), gv2 = totalDbAt(gc2, fs);
       for (var git = 0; git < 40; git++){

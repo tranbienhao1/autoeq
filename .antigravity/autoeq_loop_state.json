@@ -2,12 +2,12 @@
   "repo": "https://github.com/tranbienhao1/autoeq",
   "branch": "autoeq-autopilot",
   "cadenceMinutes": 30,
-  "cycleCount": 0,
-  "cycle_id": 0,
+  "cycleCount": 1,
+  "cycle_id": 1,
   "chained_step_count": 0,
-  "git_head": "d2d12cc738434d3b739b8fea771a7505202c0508",
-  "lastPhase": "OPTIMIZE",
-  "lastRunIso": "2026-11-25T18:14:28.905Z",
+  "git_head": "3818ff9be0e332be4cd3ac1d64d75159e20eed1e",
+  "lastPhase": "BUG_HUNT",
+  "lastRunIso": "2026-11-25T20:25:00.000Z",
   "baseline_metrics": {
     "measuredAt": "2026-11-25T18:14:28.905Z",
     "gitHead": "d2d12cc738434d3b739b8fea771a7505202c0508",
@@ -51,24 +51,39 @@
       "description": "decrampOn defaults to false and upDecrampedPeakingCoeffs is not yet integrated into AE_WORKER_SRC / aeBandCurve in src/03-autoeq-solver.js."
     },
     {
-      "id": "BUG-02",
-      "severity": "medium",
-      "module": "src/03-autoeq-solver.js:99",
-      "description": "aeParseMeasurement splits European comma-decimal input (e.g. \"1000,0; -2,5\") on ',' -> [1000, 0] instead of [1000, -2.5] (unlike dbParseMeasurement), and silently skips non-numeric lines like \"NaN 80\"."
-    },
-    {
-      "id": "BUG-03",
-      "severity": "medium",
-      "module": "src/01-dsp-core.js:556",
-      "description": "computeAutoPre(fs) scans only 20 Hz..20 kHz, missing >20 kHz boost peaks at 88.2/96 kHz (e.g. 16 kHz +12 dB highshelf @ 96 kHz yields +2.154 dBFS headroom violation at 47 kHz)."
-    },
-    {
       "id": "GAP-HUBER-ENERGY-LOSS",
       "severity": "low",
       "module": "src/03-autoeq-solver.js",
       "description": "aeSolveObjective currently uses weighted L2 (MSE) + gain/Q penalty; Soft L1 (Huber) energy-domain loss and >10 kHz energy averaging remain open for Cycle #1+ experimentation."
     }
   ],
+  "latest_metrics": {
+    "measuredAt": "2026-11-25T20:23:23.000Z",
+    "gitHead": "3818ff9be0e332be4cd3ac1d64d75159e20eed1e",
+    "htmlMd5": "f6405f87ca2dca56d4fe75aad7ed2761",
+    "solverCoreMd5": "bd68ddb9cd33778940a5fe69fba060bd",
+    "samples36": {
+      "pairs": 36,
+      "rmsBeforeMean": 4.1293,
+      "rmsAfterMean": 0.1107,
+      "rmsAfterMax": 0.191,
+      "violations": 0,
+      "nullBoosts": 0
+    },
+    "stratified600": {
+      "shards": 100,
+      "totalPairs": 600,
+      "uniquePhones": 50,
+      "rmsBeforeMean": 4.947,
+      "rmsAfterMean": 0.3347,
+      "rmsAfterMedian": 0.346,
+      "rmsAfterP95": 0.4886,
+      "rmsAfterMax": 0.5897,
+      "totalViolations": 0,
+      "totalNullBoosts": 0,
+      "duplicates": 0
+    }
+  },
   "tested_hypotheses": [
     {
       "id": "HIST-FFT-TWIDDLE-TABLE",
@@ -104,16 +119,6 @@
       "title": "Tối ưu hóa thuật toán khởi tạo hạt giống aeBuildSeed12 / aeSolveSeeded và giảm thời gian hội tụ đa dải trên nhóm tai nghe RMSE cao"
     },
     {
-      "id": "BUG-02",
-      "phase": "BUG_HUNT",
-      "title": "Sửa lỗi aeParseMeasurement (src/03-autoeq-solver.js:99) tách nhầm thập phân dấu phẩy châu Âu ('1000,0; -2,5' -> [1000, 0]) và bỏ qua dòng 'NaN 80'; đồng bộ hóa với dbParseMeasurement và bổ sung test tái hiện"
-    },
-    {
-      "id": "BUG-03",
-      "phase": "BUG_HUNT",
-      "title": "Sửa lỗi computeAutoPre(fs) (src/01-dsp-core.js:556) chỉ quét 20 Hz..20 kHz bỏ sót đỉnh boost >20 kHz tại 88.2/96 kHz (ví dụ highshelf 16 kHz +12 dB @ 96 kHz gây +2.154 dBFS) và bổ sung test tái hiện"
-    },
-    {
       "id": "UPG-02",
       "phase": "UPGRADE",
       "title": "Bổ sung phạt anti-ringing cho Peaking boost Q cao và ưu tiên chuyển đổi mượt Low-Shelf / High-Shelf trên các đường cong Harman, IEF, Diffuse Field, JM-1"
@@ -124,5 +129,20 @@
       "title": "Tối ưu hóa hiệu năng hwSolve / geqFit và giảm cấp phát bộ nhớ tạm trong AudioWorklet / solver worker fallback"
     }
   ],
-  "completedTasks": []
+  "completedTasks": [
+    {
+      "id": "BUG-02",
+      "phase": "BUG_HUNT",
+      "cycle_id": 1,
+      "completedAt": "2026-11-25T20:23:23.000Z",
+      "summary": "Fixed aeParseMeasurement & dbParseMeasurement European comma-decimal parsing and NaN/Infinity rejection with regression tests."
+    },
+    {
+      "id": "BUG-03",
+      "phase": "BUG_HUNT",
+      "cycle_id": 1,
+      "completedAt": "2026-11-25T20:23:23.000Z",
+      "summary": "Extended computeAutoPre(fs) to scan sub-20 Hz and ultrasonic (20 kHz..Nyquist] at 44.1/48/88.2/96 kHz; verified 0 clipping violations."
+    }
+  ]
 }

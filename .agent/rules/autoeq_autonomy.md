@@ -7,7 +7,7 @@ alwaysApply: true
 # QUY TẮC VẬN HÀNH TỰ ĐỘNG 24/7 (`tranbienhao1/autoeq`, nhánh `autoeq-autopilot`)
 
 1. **Chế độ Thực Thi Không Gián Đoạn & Nối Đuôi 1 Phút (`Zero-Stop + 60s Tail-Chaining`):**
-   - Luôn tự động chạy kiểm tra cú pháp, unit test (`node --test`), Verification Gate (`node scripts/verify_autoeq.js`) và `git commit` cục bộ trên nhánh `autoeq-autopilot` (KHÔNG checkout `main`, KHÔNG `git push` trừ khi người dùng yêu cầu).
+   - Luôn tự động chạy kiểm tra cú pháp, unit test (`node --test`), Verification Gate (`node scripts/verify_autoeq.js`) và `git commit` + `git push origin HEAD` trên nhánh `autoeq-autopilot` (KHÔNG checkout `main`).
    - Tuyệt đối KHÔNG dùng lệnh `sleep` trong bash/terminal để chờ. Mọi nhịp chờ hậu kiểm bắt buộc dùng công cụ `schedule` gốc của Antigravity:
      - Chu kỳ chính 30 phút: `CronExpression="*/30 * * * *"`, `IsDaemon=true`.
      - Nhịp nối đuôi 1 phút: `DurationSeconds=60`, `TimerCondition="never"` (hoặc `<task_id>` nếu đợi tiến trình benchmark chạy nền hoàn tất), tối đa **3 nhịp nối đuôi liên tiếp** (`chained_step_count <= 3`) trong mỗi chu kỳ 30 phút, rồi kết thúc lượt ngay để hệ thống đánh thức phản hồi.
