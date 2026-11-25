@@ -1371,8 +1371,33 @@ function objectiveS(bi, trial){
     var simp = [x0, [x0[0] + steps[0], x0[1], x0[2]], [x0[0], x0[1] + steps[1], x0[2]], [x0[0], x0[1], x0[2] + steps[2]]];
     var vals = new Array(simp.length); for (var vi0 = 0; vi0 < simp.length; vi0++) vals[vi0] = objectiveS(bi, toBand(simp[vi0]));
     for (var it = 0; it < 110; it++){
-      var idx = [0, 1, 2, 3].sort(function(a, b2){ return vals[a] - vals[b2]; });
-      var _ns = new Array(idx.length), _nv = new Array(idx.length); for (var ri = 0; ri < idx.length; ri++){ _ns[ri] = simp[idx[ri]]; _nv[ri] = vals[idx[ri]]; } simp = _ns; vals = _nv;
+      var idx=[0,1,2,3];
+      /* (vong tu dong 23:54, huong A): port binary-insertion TimSort tu aeSolveSingle 15:54 sang hwSolve nmBand - thay [0,1,2,3].sort(...) + cap phat _ns/_nv moi vong NM bang tai hien thuat toan TimSort cua V8 (run detection + binary insertion, comparator NaN->0) va sap xep tai cho simp/vals; moi ket qua GIONG TUNG BIT theo cau truc (kiem chung fuzz sort 656976 ca + parity hwSolve 40/40 + edge 10/10; bench paired-median 2 lan: moi workload 1.01-1.05x, thang da so vong). */
+      var _srtRun = 2;
+      var _srtD = vals[1]-vals[0]; if (_srtD !== _srtD) _srtD = 0;
+      if (_srtD < 0){
+        while (_srtRun < 4){ _srtD = vals[idx[_srtRun]]-vals[idx[_srtRun-1]]; if (_srtD !== _srtD) _srtD = 0; if (_srtD < 0) _srtRun++; else break; }
+        var _srtLo = 0, _srtHi = _srtRun-1;
+        while (_srtLo < _srtHi){ var _srtT = idx[_srtLo]; idx[_srtLo] = idx[_srtHi]; idx[_srtHi] = _srtT; _srtLo++; _srtHi--; }
+      } else {
+        while (_srtRun < 4){ _srtD = vals[idx[_srtRun]]-vals[idx[_srtRun-1]]; if (_srtD !== _srtD) _srtD = 0; if (_srtD >= 0) _srtRun++; else break; }
+      }
+      if (_srtRun < 4){
+        for (var _srtI = _srtRun; _srtI < 4; _srtI++){
+          var _srtPiv = idx[_srtI], _srtLeft = 0, _srtRight = _srtI;
+          while (_srtLeft < _srtRight){
+            var _srtMid = (_srtLeft+_srtRight)>>>1;
+            _srtD = vals[_srtPiv]-vals[idx[_srtMid]]; if (_srtD !== _srtD) _srtD = 0;
+            if (_srtD < 0) _srtRight = _srtMid; else _srtLeft = _srtMid+1;
+          }
+          for (var _srtJ = _srtI; _srtJ > _srtLeft; _srtJ--) idx[_srtJ] = idx[_srtJ-1];
+          idx[_srtLeft] = _srtPiv;
+        }
+      }
+      var tS0=simp[idx[0]], tS1=simp[idx[1]], tS2=simp[idx[2]], tS3=simp[idx[3]];
+      var tV0=vals[idx[0]], tV1=vals[idx[1]], tV2=vals[idx[2]], tV3=vals[idx[3]];
+      simp[0]=tS0; simp[1]=tS1; simp[2]=tS2; simp[3]=tS3;
+      vals[0]=tV0; vals[1]=tV1; vals[2]=tV2; vals[3]=tV3;
       if (Math.abs(vals[3] - vals[0]) < 1e-5) break;
       var cen = [(simp[0][0] + simp[1][0] + simp[2][0]) / 3, (simp[0][1] + simp[1][1] + simp[2][1]) / 3, (simp[0][2] + simp[1][2] + simp[2][2]) / 3];
       var xr = new Array(3); for (var d1 = 0; d1 < 3; d1++){ var c1 = cen[d1]; xr[d1] = c1 + (c1 - simp[3][d1]); } var vr = objectiveS(bi, toBand(xr));
