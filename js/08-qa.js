@@ -261,12 +261,18 @@ function qaCascade(xL, xR, coeffs){
   var nF = coeffs.length, N = xL.length;
   var yL = new Float64Array(N), yR = new Float64Array(N);
   var s1L = new Float64Array(nF), s2L = new Float64Array(nF), s1R = new Float64Array(nF), s2R = new Float64Array(nF);
+  /* (vòng tự động 18:24, hướng B): hoist 5 trường hệ số (b0,b1,b2,a1,a2) của từng band ra 5 mảng số thuần MỘT lần trước vòng mẫu — trước đây mỗi mẫu × mỗi band × mỗi kênh đều nạp lại c.b0..c.a2 qua thuộc tính object (tới 2×N×nF×5 lần nạp/mỗi lần gọi); nay đọc đúng MỘT lần/band rồi vòng trong đọc số thuần B0[b]..A2[b]. Cùng toán hạng/thứ tự phép tính (y = b0*x + s1; s1 = b1*x - a1*y + s2; s2 = b2*x - a2*y) nên mọi mẫu GIỐNG TỪNG BIT theo cấu trúc; chỉ hoist khi N>0 để giữ nguyên hành vi N=0 (không đọc hệ số, trả mảng rỗng như cũ kể cả khi coeff null/thiếu trường). Lab Node trên hàm thật trích verbatim (hidden_files/run_20261125_1824_B/lab/, harness2.js, 2 lần bench độc lập + xác minh lại trên chính file đã vá): parity 34/34 GIỐNG TỪNG BIT cả 2 lần (Object.is trên mọi mẫu + đúng loại lỗi ném; gồm nF 0/1/10/20/32 × N 0/1/7/4096, coeff NaN/±Infinity/-0/subnormal/thiếu trường/cực đoan 1e308, coeff null/undefined ném đúng TypeError, N=0 với coeff null không ném như cũ, mảng coeffs null, xL null, xL/xR lệch độ dài, fuzz 200); tốc độ paired-median xen kẽ 15 vòng trên qaCascade 20 band × 65536 mẫu: lần 1 2,9929x thắng 15/15, lần 2 2,8774x thắng 15/15 (xác minh trên file đã vá: 3,0267x/2,9593x thắng 15/15 cả 2 lần; control old-vs-old 1,0012x/1,0008x) — cải thiện ổn định. qaCascade là bản sao ngoại tuyến tham chiếu của chuỗi DSP (đo THD+N/null/IR trong qaRunSuite) nên không chạm solver/WASM/FIR; aeV3 không đổi theo cấu trúc (không đo lại; gần nhất 468/482 ms ngày 2026-11-11). QA trình duyệt đầy đủ chưa chạy được trên VM (headless Chrome bị chặn Hatch WebGL). Lượt kế: nhóm C. */
+  var B0 = null, B1 = null, B2 = null, A1 = null, A2 = null;
+  if (N > 0){
+    B0 = new Array(nF); B1 = new Array(nF); B2 = new Array(nF); A1 = new Array(nF); A2 = new Array(nF);
+    for (var _hi = 0; _hi < nF; _hi++){ var _hc = coeffs[_hi]; B0[_hi] = _hc.b0; B1[_hi] = _hc.b1; B2[_hi] = _hc.b2; A1[_hi] = _hc.a1; A2[_hi] = _hc.a2; }
+  }
   for (var n = 0; n < N; n++){
-    var x = xL[n], y, b, c;
-    for (b = 0; b < nF; b++){ c = coeffs[b]; y = c.b0*x + s1L[b]; s1L[b] = c.b1*x - c.a1*y + s2L[b]; s2L[b] = c.b2*x - c.a2*y; x = y; }
+    var x = xL[n], y, b;
+    for (b = 0; b < nF; b++){ y = B0[b]*x + s1L[b]; s1L[b] = B1[b]*x - A1[b]*y + s2L[b]; s2L[b] = B2[b]*x - A2[b]*y; x = y; }
     yL[n] = x;
     x = xR[n];
-    for (b = 0; b < nF; b++){ c = coeffs[b]; y = c.b0*x + s1R[b]; s1R[b] = c.b1*x - c.a1*y + s2R[b]; s2R[b] = c.b2*x - c.a2*y; x = y; }
+    for (b = 0; b < nF; b++){ y = B0[b]*x + s1R[b]; s1R[b] = B1[b]*x - A1[b]*y + s2R[b]; s2R[b] = B2[b]*x - A2[b]*y; x = y; }
     yR[n] = x;
   }
   return [yL, yR];

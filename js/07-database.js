@@ -2274,23 +2274,24 @@ function batchSelInfo(){
 function batchCurrentList(){
   batchRestoreSel();
   var q = $("batchSearch") ? $("batchSearch").value.trim() : "";
-  var all = Object.keys(AE_PHONES).map(function(id){ return AE_PHONES[id]; });
+  var keys = Object.keys(AE_PHONES);
   var list;
   if (q){
     /* (vòng tự động 10:54, hướng D): gộp vòng lọc s>10 vào vòng chấm điểm trong batchCurrentList (js/07-database.js) — trước đây map toàn bộ AE_PHONES (tới 5.000 mục) thành wrapper {p,s} rồi filter s>10, cấp phát ~5.000 wrapper thừa mỗi lần gõ tìm kiếm hàng loạt; nay một vòng duy nhất chỉ push wrapper khi s>10 rồi sort/slice/map như cũ. Cùng thứ tự all, cùng comparator, sort ổn định nên đầu ra GIỐNG TỪNG BIT (kể cả mảng thưa: kiểm tra (_bi in all) mô phỏng đúng ngữ nghĩa bỏ qua lỗ của map; lỗi ném khi phần tử null/getter ném lỗi giữ nguyên thứ tự gọi aeStepScore). Đối xứng với vá aeRenderStepResults 08:24 ở js/03-solver.js, áp cho nhánh hàng loạt chưa từng làm. */
     var _bscored = [];
-    for (var _bi = 0; _bi < all.length; _bi++){
-      if (!(_bi in all)) continue;
-      var _bp = all[_bi];
+    for (var _bi = 0; _bi < keys.length; _bi++){
+      var _bp = AE_PHONES[keys[_bi]];
       var _bs = aeStepScore(q, _bp.name);
       if (_bs > 10) _bscored.push({ p: _bp, s: _bs });
     }
     _bscored.sort(function(a, b){ return b.s - a.s; });
     list = _bscored.slice(0, 60).map(function(x){ return x.p; });
   } else {
-    list = all.slice().sort(function(a, b){ return a.name < b.name ? -1 : 1; }).slice(0, 60);
+    /* (vòng tự động 17:24, hướng D — ÁP DỤNG, vá code, bản đa file): tái dùng cache danh sách đã sắp xếp _aeStepSortedList (js/03-solver.js, áp dụng 06:00 cho aeRenderStepResults) trong nhánh ô tìm trống của batchCurrentList thay vì sort lại toàn bộ AE_PHONES (tới 5.000 mục) mỗi lần render panel batch. Cùng thứ tự Object.keys + cùng comparator a.name<b.name?-1:1 + sort ổn định nên đầu ra GIỐNG TỪNG BIT; cache tự dựng lại khi AE_PHONES thêm/xoá/thay object/đổi tên (snapshot keys/phones/names trong _aeStepSortedList). Fallback sort cũ nếu 03-solver chưa nạp. Lab (hidden_files/run_20261125_1724_D/lab/, extract verbatim + harness + bench, 2 lần bench độc lập): parity 314/314 GIỐNG TỪNG BIT cả 2 lần (5000 mục, cache lạnh/ấm, xen kẽ gọi trực tiếp cache, thêm/xoá/thay object/đổi tên tại chỗ/đổi rig/reorder, rỗng/1 mục/tên trùng, nhánh q, fuzz 300 mutation xen kẽ); bench paired-median xen kẽ 15 vòng trên nhánh ô trống 5000 mục — lần 1 warm 2,3764x (15/15), lần 2 warm 2,4265x (15/15); workload adversarial đổi tên mỗi lượt (rebuild mỗi lần) 0,82x cả 2 lần — không phải workload thực tế (AE_PHONES ổn định giữa các lần render batch, cache đã ấm từ aeRenderStepResults). Không chạm solver/WASM/FIR/QA logic; aeV3 không đổi theo cấu trúc (không đo lại; gần nhất 468/482 ms ngày 2026-11-11). QA trình duyệt đầy đủ chưa chạy được trên VM (headless Chrome bị chặn Hatch WebGL). Lượt kế: nhóm A. --- */
+    /* (vòng tự động 19:24, hướng D — ÁP DỤNG, vá code, bản đa file): dùng keys trực tiếp trong batchCurrentList (js/07-database.js) thay vì dựng mảng all = Object.keys(AE_PHONES).map(...) mỗi lần gọi — trước đây nhánh ô trống vẫn map toàn bộ AE_PHONES (tới 5.000 mục) chỉ để lấy all.length cho trường trả về, dù list đã lấy từ cache _aeStepSortedList; nay tính keys MỘT lần, nhánh q vòng trực tiếp trên keys (cùng thứ tự Object.keys, cùng comparator, sort ổn định nên đầu ra GIỐNG TỪNG BIT; all.length cũ luôn bằng keys.length vì map trên mảng dày), nhánh ô trống truyền chính keys cho _aeStepSortedList và trả all = keys.length, fallback giữ nguyên map+sort cũ trên keys. Lab (hidden_files/run_20261125_1924_D/lab/, extract verbatim + harness + bench, 2 lần bench độc lập): parity 569/569 GIỐNG TỪNG BIT cả 2 lần (cỡ 0/1/3/100/5000, tên trùng/unicode, chuỗi mutation thêm/xoá/thay object/đổi tên tại chỗ/reorder xen kẽ, fuzz 300, entry null) + fallback 205/205; bench paired-median xen kẽ 15 vòng trên 5.000 mục — nhánh ô trống lần 1 1,7512x (15/15), lần 2 1,7225x (15/15); nhánh q trung tính trong nhiễu (điểm aeStepScore chiếm áp đảo). Không chạm solver/WASM/FIR/QA logic; aeV3 không đổi theo cấu trúc (không đo lại; gần nhất 468/482 ms ngày 2026-11-11). QA trình duyệt đầy đủ chưa chạy được trên VM (headless Chrome bị chặn Hatch WebGL). Lượt kế: nhóm A. --- */
+    list = (typeof _aeStepSortedList === "function" ? _aeStepSortedList(keys) : keys.map(function(id){ return AE_PHONES[id]; }).sort(function(a, b){ return a.name < b.name ? -1 : 1; })).slice(0, 60);
   }
-  return { list: list, all: all.length, q: q };
+  return { list: list, all: keys.length, q: q };
 }
 function batchRenderList(){
   var box = $("batchList"); if (!box) return;
