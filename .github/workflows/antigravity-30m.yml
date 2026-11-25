@@ -1,0 +1,42 @@
+name: Antigravity 30-Minute Continuous Audit & Queue Feeder
+
+on:
+  schedule:
+    - cron: '*/30 * * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  continuous-audit-30m:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Run 30-Minute AutoEQ Watchdog & Codebase Health Scan
+        run: |
+          if [ -f "scripts/antigravity_30m_loop.js" ]; then
+            node scripts/antigravity_30m_loop.js --once
+          fi
+
+      - name: Run AutoEQ Node Test Suite
+        run: node --test tests/*.test.cjs
+
+      - name: Commit updated Antigravity state if changed
+        run: |
+          git config user.name "antigravity-bot"
+          git config user.email "antigravity-bot@users.noreply.github.com"
+          if [ -n "$(git status --porcelain .antigravity/ .agent/)" ]; then
+            git add .antigravity/ .agent/
+            git commit -m "chore(antigravity): 30m heartbeat diagnostics & queue update [skip ci]"
+            git push origin HEAD
+          fi

@@ -1,0 +1,128 @@
+{
+  "repo": "https://github.com/tranbienhao1/autoeq",
+  "branch": "autoeq-autopilot",
+  "cadenceMinutes": 30,
+  "cycleCount": 0,
+  "cycle_id": 0,
+  "chained_step_count": 0,
+  "git_head": "d2d12cc738434d3b739b8fea771a7505202c0508",
+  "lastPhase": "OPTIMIZE",
+  "lastRunIso": "2026-11-25T18:14:28.905Z",
+  "baseline_metrics": {
+    "measuredAt": "2026-11-25T18:14:28.905Z",
+    "gitHead": "d2d12cc738434d3b739b8fea771a7505202c0508",
+    "htmlMd5": "a742abde45ec34b25fe88828130d1d01",
+    "solverCoreMd5": "09b8181545c569550fd06e7d18254ee7",
+    "samples36": {
+      "pairs": 36,
+      "rmsBeforeMean": 4.1293,
+      "rmsAfterMean": 0.1107,
+      "rmsAfterMax": 0.191,
+      "violations": 0,
+      "nullBoosts": 0
+    },
+    "stratified600": {
+      "shards": 100,
+      "totalPairs": 600,
+      "uniquePhones": 50,
+      "rmsBeforeMean": 4.947,
+      "rmsAfterMean": 0.3347,
+      "rmsAfterMedian": 0.346,
+      "rmsAfterP95": 0.4886,
+      "rmsAfterMax": 0.5897,
+      "totalViolations": 0,
+      "totalNullBoosts": 0,
+      "duplicates": 0
+    },
+    "cachedSweep9000Reference": {
+      "solverCoreMd5": "e5a6503409d3acb8e83f2c390a0876f9",
+      "totalPairs": 9000,
+      "rmsBeforeMean": 5.0547,
+      "rmsAfterMean": 0.3424,
+      "totalViolations": 0,
+      "totalNullBoosts": 0
+    }
+  },
+  "open_bugs": [
+    {
+      "id": "BUG-DECRAMP-PARITY",
+      "severity": "medium",
+      "module": "src/upgrades/04-decramped-biquad.js",
+      "description": "decrampOn defaults to false and upDecrampedPeakingCoeffs is not yet integrated into AE_WORKER_SRC / aeBandCurve in src/03-autoeq-solver.js."
+    },
+    {
+      "id": "BUG-02",
+      "severity": "medium",
+      "module": "src/03-autoeq-solver.js:99",
+      "description": "aeParseMeasurement splits European comma-decimal input (e.g. \"1000,0; -2,5\") on ',' -> [1000, 0] instead of [1000, -2.5] (unlike dbParseMeasurement), and silently skips non-numeric lines like \"NaN 80\"."
+    },
+    {
+      "id": "BUG-03",
+      "severity": "medium",
+      "module": "src/01-dsp-core.js:556",
+      "description": "computeAutoPre(fs) scans only 20 Hz..20 kHz, missing >20 kHz boost peaks at 88.2/96 kHz (e.g. 16 kHz +12 dB highshelf @ 96 kHz yields +2.154 dBFS headroom violation at 47 kHz)."
+    },
+    {
+      "id": "GAP-HUBER-ENERGY-LOSS",
+      "severity": "low",
+      "module": "src/03-autoeq-solver.js",
+      "description": "aeSolveObjective currently uses weighted L2 (MSE) + gain/Q penalty; Soft L1 (Huber) energy-domain loss and >10 kHz energy averaging remain open for Cycle #1+ experimentation."
+    }
+  ],
+  "tested_hypotheses": [
+    {
+      "id": "HIST-FFT-TWIDDLE-TABLE",
+      "status": "rejected",
+      "source": "src/01-dsp-core.js:583",
+      "summary": "Precomputed twiddle lookup table for fft() was slower/redundant vs recurrence cos/sin."
+    },
+    {
+      "id": "HIST-NM-GAIN-RELAX",
+      "status": "rejected",
+      "source": "docs/auto-audit-log.md",
+      "summary": "Relaxing Nelder-Mead gain/Q bounds violated safety/anti-ringing criteria."
+    }
+  ],
+  "diagnostics": {
+    "syntaxErrors": [],
+    "warnings": []
+  },
+  "pendingQueue": [
+    {
+      "id": "BUG-01",
+      "phase": "BUG_HUNT",
+      "title": "Kiểm toán tích hợp upDecrampedPeakingCoeffs giữa engine chính và AE_WORKER_SRC / aeBandCurve trên 44.1/48/88.2/96 kHz đảm bảo ổn định Jury (|pole| < 1)"
+    },
+    {
+      "id": "UPG-01",
+      "phase": "UPGRADE",
+      "title": "Thử nghiệm hàm mất mát miền năng lượng / Soft L1 (Huber Loss) và trung bình năng lượng dải > 10 kHz trong aeSolveObjective cho toàn bộ 12 AE_TARGETS"
+    },
+    {
+      "id": "OPT-01",
+      "phase": "OPTIMIZE",
+      "title": "Tối ưu hóa thuật toán khởi tạo hạt giống aeBuildSeed12 / aeSolveSeeded và giảm thời gian hội tụ đa dải trên nhóm tai nghe RMSE cao"
+    },
+    {
+      "id": "BUG-02",
+      "phase": "BUG_HUNT",
+      "title": "Sửa lỗi aeParseMeasurement (src/03-autoeq-solver.js:99) tách nhầm thập phân dấu phẩy châu Âu ('1000,0; -2,5' -> [1000, 0]) và bỏ qua dòng 'NaN 80'; đồng bộ hóa với dbParseMeasurement và bổ sung test tái hiện"
+    },
+    {
+      "id": "BUG-03",
+      "phase": "BUG_HUNT",
+      "title": "Sửa lỗi computeAutoPre(fs) (src/01-dsp-core.js:556) chỉ quét 20 Hz..20 kHz bỏ sót đỉnh boost >20 kHz tại 88.2/96 kHz (ví dụ highshelf 16 kHz +12 dB @ 96 kHz gây +2.154 dBFS) và bổ sung test tái hiện"
+    },
+    {
+      "id": "UPG-02",
+      "phase": "UPGRADE",
+      "title": "Bổ sung phạt anti-ringing cho Peaking boost Q cao và ưu tiên chuyển đổi mượt Low-Shelf / High-Shelf trên các đường cong Harman, IEF, Diffuse Field, JM-1"
+    },
+    {
+      "id": "OPT-02",
+      "phase": "OPTIMIZE",
+      "title": "Tối ưu hóa hiệu năng hwSolve / geqFit và giảm cấp phát bộ nhớ tạm trong AudioWorklet / solver worker fallback"
+    }
+  ],
+  "completedTasks": []
+}

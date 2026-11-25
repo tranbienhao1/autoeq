@@ -3,3 +3,5 @@ node_modules/
 sweep-shards/
 tmp/
 *.tmp
+.agent/RUN.LOCK
+.antigravity/*.lock
