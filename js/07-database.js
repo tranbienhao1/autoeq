@@ -289,12 +289,15 @@ function dbExtWriteStore(list){
     return true;
   } catch (e){ return false; }
 }
-function dbExtEntryToPhone(e){
-  var vals = dbDecodeV(e.v);
+/* (vòng tự động 23:24, hướng D — ÁP DỤNG, vá code, bản đa file): dbExtAddEntries trước đây giải mã e.v HAI lần cho mỗi mục nhập (dbValidateEntry tự decode, rồi dbExtEntryToPhone lại decode) — mỗi pack/GitHub import tốn 121 lần parseInt thừa/mục. Nay dbExtAddEntries giải mã MỘT lần (cùng biểu thức kiểm tra như dbValidateEntry/dbBuildPhones: thiếu trường -> "thiếu trường dữ liệu", ngược lại decode rồi dbValidateVals) rồi dùng chung vals cho cả kiểm tra lẫn dựng phone qua dbExtEntryToPhoneVals (cùng object literal, cùng biểu thức knots từng toán hạng); dbExtEntryToPhone giữ nguyên chữ ký/hành vi bằng cách ủy quyền với dbDecodeV(e.v). Đối xứng với vá giải mã-một-lần ở dbBuildPhones (07:01 ngày 24/11). Lab (hidden_files/run_20261125_2324_D/lab2/, hàm trích verbatim + harness, 5 lần bench độc lập): parity 22/22 GIỐNG TỪNG BIT mọi lần (biên null/thiếu trường/v không phải chuỗi/chuỗi ngắn/lệch lưới/dải động/dup không phân biệt hoa thường/fuzz 500 mục + register:true); bench paired-median xen kẽ 21 vòng x 5 lượt gộp trên import 2.000 mục — 2 lần đo sạch cuối 1,1886x (thắng 14/21) và 1,1365x (thắng 13/21); 5 lần đo gộp median ratio 1,10–1,27x. Không chạm solver/WASM/FIR/QA logic; aeV3 không đổi theo cấu trúc (không đo lại; gần nhất 468/482 ms ngày 2026-11-11). QA trình duyệt đầy đủ chưa chạy được trên VM (headless Chrome bị chặn Hatch WebGL). Lượt kế: nhóm A. --- */
+function dbExtEntryToPhoneVals(e, vals){
   return { name: e.n, brand: e.b || "", type: e.t || "", rig: e.r || "other", rigLabel: e.rl || "Rig khác / chưa xác định",
     source: "AutoEq · " + e.s, srcKey: e.s,
     knots: DB_GRID.map(function(f, i){ return [Math.round(f*10)/10, vals[i]]; }),
     attribution: dbAttribution(e) };
+}
+function dbExtEntryToPhone(e){
+  return dbExtEntryToPhoneVals(e, dbDecodeV(e.v));
 }
 /* Thêm mục vào danh sách đích. targetList/seen do caller cấp để
    self-check chạy trên bản sao mà không chạm kho thật. opts.register
@@ -306,12 +309,14 @@ function dbExtAddEntries(entries, targetList, seen, opts){
   if (bulk) AE_REG_BULK = true;
   try {
     entries.forEach(function(e){
-      var err = dbValidateEntry(e);
+      var err, vals;
+      if (!e || !e.n || typeof e.v !== "string") err = "thiếu trường dữ liệu";
+      else { vals = dbDecodeV(e.v); err = dbValidateVals(vals); }
       if (err){ rejected.push({ n: (e && e.n) || "(không tên)", s: (e && e.s) || "?", r: err }); return; }
       var key = ((e.n || "") + "|" + (e.s || "")).toLowerCase();
       if (seen[key]){ rejected.push({ n: e.n, s: e.s, r: "trùng tên + nguồn" }); return; }
       seen[key] = 1;
-      var p = dbExtEntryToPhone(e);
+      var p = dbExtEntryToPhoneVals(e, vals);
       targetList.push(p);
       added.push(p);
       if (opts && opts.register && typeof aeRegisterPhone === "function"){
