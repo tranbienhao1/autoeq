@@ -1,0 +1,1245 @@
+<!doctype html>
+<!-- Web AutoEQ - ban da file (tach tu ban 1 file 2026-11-24). Mo index.html trong thu muc nay, giu nguyen cau truc thu muc. -->
+
+<html lang="vi">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="color-scheme" content="dark" />
+    <link rel="icon" href="data:," />
+    <title>Web AutoEQ — DSP Core</title>
+    <link rel="stylesheet" href="css/app.css" />
+  </head>
+  <body>
+    <div class="wrap">
+      <!-- ======= STATUS ======= -->
+      <div class="statusbar">
+        <span class="pill"><span class="dot" id="dotEngine"></span>Engine <b id="stEngine">Chưa khởi tạo</b></span>
+        <span class="pill">Sample rate <b class="val" id="stFs">—</b></span>
+        <span class="pill">Chế độ <b id="stMode">Minimum Phase · IIR</b></span>
+        <span class="pill">Độ trễ DSP <b class="val" id="stLatency">—</b></span>
+        <span class="pill">Worklet <b id="stWorklet">AudioWorkletProcessor · float64</b></span>
+        <span class="spacer"></span>
+        <button class="btn small danger" id="btnBypass" disabled>Bypass: Tắt</button>
+        <button class="btn small" id="btnReset">Đặt lại EQ</button>
+      </div>
+
+      <div class="err" id="errBox"></div>
+
+      <div class="grid">
+        <div>
+          <!-- ======= TRANSPORT ======= -->
+          <div class="panel" id="tpPanel">
+            <h2>Nguồn phát <span class="r" id="srcKind">chưa có nguồn</span></h2>
+            <div class="transport">
+              <button class="btn primary" id="btnPlay" disabled>▶ Phát</button>
+              <input type="file" id="fileInput" class="fileinput" accept="audio/*" multiple aria-label="Tải file audio từ máy" />
+              <button class="btn" id="btnDemo" >Tín hiệu demo: Pink noise</button>
+              <button class="btn" id="btnSweep">Quét sin 20 Hz – 20 kHz</button>
+            </div>
+            <div class="trackname" id="trackName">Chưa chọn file. Bạn có thể tải file audio từ máy, hoặc dùng tín hiệu demo tích hợp để nghe EQ ngay.</div>
+            <div class="progwrap">
+              <span id="tCur">0:00</span>
+              <input type="range" id="seek" min="0" max="1000" value="0" />
+              <span id="tDur">0:00</span>
+              <span class="volwrap"><span>Âm lượng</span>
+              <input type="range" id="vol" min="0" max="100" value="85" /></span>
+            </div>
+            <div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:10px;align-items:center">
+              <button class="btn small" id="tpPrev">⏮ Bài trước</button>
+              <button class="btn small" id="tpNext">⏭ Bài tiếp</button>
+              <button class="btn small" id="tpSetA">Đặt điểm A</button>
+              <button class="btn small" id="tpSetB">Đặt điểm B</button>
+              <button class="btn small tog" id="tpLoop">Loop A–B: Tắt</button>
+              <button class="btn small" id="tpClearAB">Xoá A–B</button>
+              <span id="tpABInfo" style="font-family:var(--mono);font-size:12px;color:var(--mut)">A–B: chưa đặt</span>
+            </div>
+            <div id="tpList" style="display:flex;flex-wrap:wrap;gap:6px;margin-top:8px"></div>
+            <div class="kv" style="margin-top:6px"><span>Định dạng / nguồn giải mã</span><b id="tpInfo">—</b></div>
+            <div class="kv"><span>Tự kiểm Transport (Nhóm 3)</span><b id="tpCheck">—</b></div>
+            <div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:10px;align-items:center">
+              <button class="btn small" id="sysAudioBtn">🎧 Âm thanh hệ thống (getDisplayMedia)</button>
+            </div>
+            <div class="kv" style="margin-top:6px"><span>Nguồn hệ thống (getDisplayMedia)</span><b id="sysInfo">Chưa kết nối.</b></div>
+            <p class="note" style="margin:6px 0 0">Âm thanh hệ thống (Nhóm 3): bấm nút rồi chọn tab/cửa sổ/màn hình và tick “Chia sẻ âm thanh” trong hộp thoại của trình duyệt — âm thanh đó sẽ chạy qua đúng engine DSP (inputBus → worklet) như file nhạc. Video của luồng chia sẻ không hiển thị và không dùng cho DSP. Giới hạn trung thực: khả năng lấy âm thanh hệ thống tuỳ trình duyệt/hệ điều hành (Chrome trên máy tính hỗ trợ tốt nhất; Safari/Firefox hạn chế hơn, có thể chỉ lấy được âm thanh của tab); một số nội dung được bảo vệ có thể không chia sẻ được âm thanh; dừng chia sẻ từ nút của trình duyệt cũng tự ngắt nguồn trong app.</p>
+            <div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:10px;align-items:center">
+              <button class="btn small" id="micBtn">🎤 Đo đáp tuyến bằng Microphone (Sine Sweep)</button>
+              <button class="btn small" id="micClearBtn">Xoá kết quả đo</button>
+            </div>
+            <div class="kv" style="margin-top:6px"><span>Đo bằng microphone</span><b id="micInfo">Chưa đo.</b></div>
+            <div class="kv"><span>Kết quả đo (tương đối 1 kHz)</span><b id="micResult">—</b></div>
+            <div class="kv"><span>Tự kiểm đo microphone (Nhóm 3)</span><b id="micCheck">—</b></div>
+            <p class="note" style="margin:6px 0 0">Đo đáp tuyến thật (Nhóm 3): app phát sweep logarit 20 Hz → 20 kHz trong 8 giây <b>thẳng ra loa (không qua EQ)</b> và đồng thời thu bằng microphone (đã yêu cầu tắt echo/noise/auto-gain của trình duyệt) để bắt đáp tuyến tại các tần số chuẩn; kết quả hiển thị theo dB tương đối 1 kHz vì gain tuyệt đối của microphone không biết được. Đây là phép đo âm học qua loa + phòng + microphone, không phải đáp tuyến tai nghe thuần — muốn đo tai nghe, đặt microphone đo sát củ loa hoặc dùng coupler. Kết quả không tự áp vào EQ (đo lường không tự thay đổi âm thanh của bạn); kết quả được lưu ở máy này và tự hiện lại khi mở app. Giới hạn trung thực: trình duyệt có thể vẫn xử lý tiếng (echo/noise) dù đã yêu cầu tắt; độ chính xác phụ thuộc microphone, vị trí đặt mic và tiếng ồn phòng.</p>
+            <div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:10px;align-items:center">
+              <button class="btn small" id="hwUsbBtn">🔌 Kết nối DAC/DSP (WebUSB)</button>
+              <button class="btn small" id="hwSerBtn">🔌 Kết nối (WebSerial)</button>
+              <button class="btn small" id="hwHidBtn">🔌 Kết nối (WebHID)</button>
+              <button class="btn small" id="hwSimBtn">🧪 Thiết bị mô phỏng</button>
+              <button class="btn small" id="hwSendBtn">⬆ Gửi EQ hiện tại xuống thiết bị</button>
+              <button class="btn small" id="hwDiscBtn">Ngắt kết nối</button>
+            </div>
+            <div class="kv" style="margin-top:6px"><span>Đồng bộ phần cứng</span><b id="hwInfo">Chưa kết nối.</b></div>
+            <div class="kv"><span>Tự kiểm giao thức phần cứng (Nhóm 3)</span><b id="hwCheck">—</b></div>
+            <p class="note" style="margin:6px 0 0">Đồng bộ phần cứng (Nhóm 3): app dựng khung nhị phân từ đúng dải band đang chạy (tần số, gain, Q, loại, bật/tắt) rồi gửi qua WebUSB / WebSerial / WebHID tuỳ thiết bị bạn chọn; trước khi gửi, khung luôn được parse-back để kiểm checksum. Gửi xuống phần cứng là thao tác <b>chỉ làm khi bạn bấm tay</b> — app không bao giờ tự gửi mỗi khi bạn chỉnh EQ (ghi đè phần cứng là việc không nên tự động). Thiết bị mô phỏng chỉ kiểm tra khung giao thức, không gửi ra phần cứng thật. Giới hạn trung thực: endpoint USB, baudrate Serial và kích thước report HID phụ thuộc đúng thiết bị bạn cắm (app tự tìm endpoint OUT đầu tiên của USB, Serial dùng 115200 baud, HID gửi report 0 và có thể bị từ chối nếu khung dài hơn giới hạn report của thiết bị); phần gửi qua phần cứng thật chỉ kiểm chứng được khi có thiết bị thật, phần giao thức đã kiểm chứng bằng parse-back và thiết bị mô phỏng.</p>
+            <p class="note" style="margin:6px 0 0">Mới (Nhóm 3): chọn nhiều file hoặc kéo-thả nhiều file audio (FLAC/WAV/MP3/AAC/OGG) vào panel này để thành playlist. File được giải mã bằng decodeAudioData của trình duyệt thành AudioBuffer rồi phát qua đúng engine DSP (cho phép seek chính xác và Loop A–B bằng loopStart/loopEnd); nếu trình duyệt không giải mã được định dạng đó, app tự rơi về đường phát &lt;audio&gt; cũ (seek bằng currentTime, Loop A–B bằng tua lại khi tới B) thay vì báo lỗi. Hết một bài, app tự chuyển bài tiếp theo (trừ khi Loop A–B đang bật); bấm chọn bài trong danh sách luôn ghi đè việc tự chuyển. Giới hạn trung thực: khả năng giải mã FLAC bằng decodeAudioData tuỳ trình duyệt — Chrome giải mã được, trình duyệt không hỗ trợ sẽ dùng đường &lt;audio&gt; và vẫn phát được nếu nó phát được FLAC.</p>
+            <audio id="audioEl" preload="auto" style="display:none"></audio>
+          </div>
+
+          <!-- ======= SPECTROGRAM / RTA (Nhóm 4) ======= -->
+          <div class="panel" style="margin-top:14px" id="specPanel">
+            <h2>Spectrogram / RTA 1/24-octave thời gian thực <span class="r" id="specState">Đang tắt</span></h2>
+            <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center">
+              <button class="btn small" id="specToggle">Bật Spectrogram</button>
+              <button class="btn small" id="specModeBtn">Chế độ: Spectrogram</button>
+              <button class="btn small" id="specClearBtn">Xoá màn hình</button>
+            </div>
+            <canvas id="specCanvas" width="900" height="260" style="display:block;width:100%;height:240px;background:#0a0c0f;border:1px solid var(--line);border-radius:6px;margin-top:8px"></canvas>
+            <div class="kv" style="margin-top:6px"><span>Chế độ / dải tần</span><b id="specInfo">—</b></div>
+            <div class="kv"><span>Tự kiểm Spectrogram/RTA (Nhóm 4)</span><b id="specCheck">—</b></div>
+            <p class="note" style="margin:6px 0 0">Spectrogram/RTA (Nhóm 4): đọc phổ trực tiếp từ analyser của engine (FFT 2048) theo trục tần logarit 20 Hz – 20 kHz. Spectrogram cuộn trái 1 cột/khung, màu theo dB (−90…0 dB); RTA vẽ 239 band 1/24-octave (trung bình công suất tuyến tính trong band rồi đổi ra dB). Chỉ vẽ khi bạn bật nút này (tắt là dừng vòng vẽ, không tốn CPU nền); cần engine đang chạy mới có tín hiệu trực tiếp — khi chưa phát, màn hình chỉ phản ánh phổ nền của analyser. Giới hạn trung thực: độ phân giải tần thực tế bị giới hạn bởi FFT 2048 của analyser (bin ≈ 23 Hz ở 48 kHz) nên các band 1/24-octave ở tần thấp gộp nhiều band trên cùng vài bin; đây là hiển thị phổ trực tiếp, không phải phép đo đáp tuyến đã hiệu chuẩn.</p>
+          </div>
+
+          <!-- ======= CHẾ ĐỘ TỰ ĐỘNG TOÀN DIỆN ======= -->
+          <div class="panel" id="autoPanel" style="margin-top:14px">
+            <h2>Chế độ Tự Động Toàn Diện <span class="r" id="autoState">ĐANG BẬT (mặc định)</span></h2>
+            <button class="btn small tog on" id="autoToggle">Tắt chế độ tự động</button>
+            <p class="note" style="margin:8px 0 0">Khi bật (mặc định khi mở app), app tự động hoá mọi tuỳ chỉnh tính được từ dữ liệu sẵn có: (1) tự chọn số band engine 10/20 theo độ phức tạp của đường correction — 20 band khi có từ 6 lần đổi chiều trở lên và biên độ đỉnh–đỉnh từ 8 dB trở lên, còn lại 10 band; (2) tự chạy solver AutoEQ và áp kết quả ngay khi đổi tai nghe hoặc target; (3) tự đặt pre-amp theo luật Giai đoạn 1; (4) tự bù loudness theo mức âm lượng hiện tại (ước lượng từ thanh âm lượng: 100% = mức tham chiếu, mỗi −10% ≈ −3 phon — chỉ là ước lượng, không phải đo SPL thật); (5) tự bật Dynamic EQ cho band có boost lớn (≥ +6 dB) và cấu hình lại các band Dynamic EQ đang bật có |gain| ≥ 2 dB mà bạn chưa chỉnh tay; (6) tự bật true-peak limiter ở trần −1.0 dBTP; (7) tự lưu trạng thái vào localStorage của trình duyệt và khôi phục khi mở lại. Chỉnh tay bất cứ lúc nào cũng ghi đè kết quả tự động cho mục đó; tắt chế độ này bất cứ lúc nào cũng được. Không tự động: chọn target, tilt/bass theo gu nghe, và đáp án test mù vẫn hoàn toàn thủ công. Solver 20 band (v2, 2026-10-26): ở engine 20 band, chế độ này tự đồng bộ số band solver thành 20 và solver sinh đủ 20 band thật bằng multi-start có phạt gain (xem hàng kiểm chứng aeV5 ở panel Prompt 2).</p>
+            <div class="kv"><span>Lần tự động gần nhất</span><b id="autoLast">—</b></div>
+            <div class="kv"><span>Số band tự chọn</span><b id="autoBandInfo">—</b></div>
+            <div class="kv"><span>Đang giữ theo tay</span><b id="autoManualInfo">—</b></div>
+            <div class="kv"><span>Trạng thái đã lưu</span><b id="autoSavedInfo">—</b></div>
+            <div class="kv"><span>Tự kiểm mô-đun Auto</span><b id="autoCheck">—</b></div>
+          </div>
+
+          <!-- ======= LIỀU NGHE TRONG TUẦN ======= -->
+          <div class="panel" id="dosePanel" style="margin-top:14px">
+            <h2>Liều nghe trong tuần <span class="r" id="doseState">ĐANG BẬT (mặc định)</span></h2>
+            <button class="btn small tog on" id="doseToggle">Tắt đồng hồ liều</button>
+            <button class="btn small" id="doseReenable">Bật lại giảm nhẹ tự động</button>
+            <button class="btn small" id="doseResetWeek">Đặt lại liều tuần này</button>
+            <p class="note" style="margin:8px 0 0">Đồng hồ này cộng dồn <b>ước lượng liều nghe</b> từ mức phát của app: liều % = tổng (số giờ nghe ở mức L) × 2^((L−80)/3) ÷ 40 giờ × 100, với mốc so sánh tuần là <b>80 dB trong 40 giờ/tuần</b> và hệ số trao đổi 3 dB. Mức L chỉ lấy từ ước lượng mức nghe theo vị trí thanh âm lượng mà Chế độ Tự Động Toàn Diện đã dùng (100% = mức tham chiếu, mỗi −10% ≈ −3 phon) — <b>đây là ước lượng từ mức phát, không phải đo SPL thật</b>; con số 80 dB/40 giờ chỉ là <b>mốc so sánh theo tuần</b> và đồng hồ này <b>không phải đánh giá y tế</b>. App <b>không ghi lại nội dung âm thanh</b> — chỉ cộng mức phát ước lượng nhân thời gian đang phát thật. Khi liều đạt từ 80% mốc, app giảm nhẹ âm lượng tối đa −3 dB ở 100% (tăng tuyến tính theo liều, không bao giờ dừng phát); bất kỳ lần chỉnh thanh âm lượng bằng tay nào cũng huỷ ngay phần giảm nhẹ đó và giữ mức của bạn, cho tới khi bạn bấm “Bật lại giảm nhẹ tự động” hoặc sang tuần mới. Liều lưu ở localStorage theo tuần ISO, chỉ ở máy này, và tự về 0 khi sang tuần mới. Đồng hồ chạy tự động theo mặc định; chỉ bật/tắt đồng hồ và bật lại giảm nhẹ là thao tác tay.</p>
+            <div class="kv"><span>Liều tích luỹ tuần này</span><b id="doseFigure">—</b></div>
+            <div style="height:10px;background:#0a0c0f;border:1px solid var(--line);border-radius:5px;overflow:hidden;margin:4px 0 2px"><div id="doseBar" style="height:100%;width:0%;background:var(--amber, #d99a26)"></div></div>
+            <div class="kv"><span>Mức nghe ước lượng hiện tại</span><b id="doseLevel">—</b></div>
+            <div class="kv"><span>Giảm nhẹ / ghi đè tay</span><b id="doseTrim">—</b></div>
+            <div class="kv"><span>Tuần đang tính</span><b id="doseWeek">—</b></div>
+            <div class="kv"><span>Tự kiểm mô-đun liều nghe</span><b id="doseCheck">—</b></div>
+            <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-top:8px">
+              <span style="font-size:12.5px;color:var(--mut)">Xem trước mô phỏng:</span>
+              <label style="font-size:12.5px;color:var(--mut)">mức <span id="doseSimLevelVal">83</span> dB <input type="range" id="doseSimLevel" min="60" max="95" step="1" value="83" style="width:110px;vertical-align:middle" /></label>
+              <label style="font-size:12.5px;color:var(--mut)"><span id="doseSimHoursVal">20</span> giờ <input type="range" id="doseSimHours" min="0" max="40" step="0.5" value="20" style="width:110px;vertical-align:middle" /></label>
+              <button class="btn small" id="doseSimRun">Chạy xem trước mô phỏng</button>
+              <button class="btn small" id="doseSimManual">Mô phỏng chỉnh âm lượng tay</button>
+              <button class="btn small" id="doseSimReset">Xoá xem trước</button>
+            </div>
+            <div class="kv" style="margin-top:6px"><span>Kết quả xem trước</span><b id="doseSimInfo">chưa chạy — xem trước chỉ mô phỏng bằng số, không phát tiếng và không tính là nghe thật</b></div>
+          </div>
+
+          <!-- ======= GRAPH ======= -->
+          <div class="panel" style="margin-top:14px">
+            <h2>Đáp tuyến tần số tổng hợp — tính giải tích từ hệ số biquad <span class="r" id="readout1k">tại 1 kHz: 0.00 dB</span></h2>
+            <div class="seg" style="margin-bottom:12px">
+              <button id="modeIir" class="on">Minimum Phase<small>IIR · cascade biquad trong AudioWorklet</small></button>
+              <button id="modeFir">Linear Phase<small>FIR đối xứng · Partitioned FFT Convolution · pha tuyến tính</small></button>
+            </div>
+            <div style="display:flex;flex-wrap:wrap;gap:7px;margin-bottom:10px;align-items:center">
+              <span style="font-size:12.5px;color:var(--mut)">Số band PEQ của engine:</span>
+              <div class="seg" id="bandCountSeg" style="min-width:250px;flex:0 1 320px">
+                <button id="bc10" class="on">10 band<small>mặc định · 31 Hz – 16 kHz</small></button>
+                <button id="bc20">20 band<small>thủ công · log-spaced 31 Hz – 16 kHz</small></button>
+              </div>
+              <span class="note" style="flex:1;min-width:220px">Ở chế độ 20 band, worklet xử lý đủ 20 band độc lập và hai bộ band được giữ riêng — chuyển qua lại không mất chỉnh sửa của chế độ còn lại. <b>Solver 20 band (v2, 2026-10-26):</b> chọn 20 band ở ô “Số band tối ưu” thì solver sinh đủ 20 band thật (multi-start λ tương đối, xem hàng aeV5); chọn ít band hơn thì các vị trí engine còn lại giữ gain 0 (phẳng). Khi Chế độ Tự Động Toàn Diện đang bật, app tự chọn 10/20 band theo độ phức tạp của đường correction (≥6 lần đổi chiều và biên độ ≥8 dB → 20 band); chọn tay vẫn ghi đè.</span>
+            </div>
+            <div style="display:flex;flex-wrap:wrap;gap:7px;margin-bottom:10px;align-items:center">
+              <span style="font-size:12.5px;color:var(--mut)">Kênh EQ:</span>
+              <div class="seg" id="lrSeg" style="min-width:250px;flex:0 1 320px">
+                <button id="lrLinked" class="on">Liên kết (L+R)<small>cả hai kênh chung một bộ band</small></button>
+                <button id="lrL">Trái (L)<small>chỉnh riêng kênh trái</small></button>
+                <button id="lrR">Phải (R)<small>chỉnh riêng kênh phải</small></button>
+                <button id="msM">Giữa (M)<small>chỉnh riêng kênh giữa</small></button>
+                <button id="msS">Bên (S)<small>chỉnh riêng kênh bên</small></button>
+              </div>
+              <span class="note" id="lrInfo" style="flex:1;min-width:220px">Liên kết: cả hai kênh dùng chung một bộ band (hành vi cũ).</span>
+            </div>
+            <div class="kv"><span>Tự kiểm tách kênh L/R (Nhóm 4)</span><b id="lrCheck">—</b></div>
+            <div class="kv"><span>Tự kiểm tách kênh Mid/Side (Nhóm 4)</span><b id="msCheck">—</b></div>
+            <div style="display:flex;flex-wrap:wrap;gap:7px;margin-bottom:10px;align-items:center">
+              <span style="font-size:12.5px;color:var(--mut)">Lớp AutoEQ:</span>
+              <button class="chip" id="chipRaw" disabled><i style="background:#d7dee8"></i>Đáp tuyến tai nghe</button>
+              <button class="chip" id="chipTgt" disabled><i style="background:#3ddc84"></i>Target</button>
+              <button class="chip" id="chipEq" disabled><i style="background:#ff8c42"></i>Kết quả sau EQ</button>
+              <span class="note" id="aeLayerNote">chọn tai nghe ở Bước 1 của panel AutoEQ để bật các lớp này</span>
+            </div>
+            <div style="display:flex;flex-wrap:wrap;gap:7px;margin-bottom:10px;align-items:center">
+              <span style="font-size:12.5px;color:var(--mut)">Lớp hiển thị:</span>
+              <button class="chip on" id="chipFilter"><i style="background:#3fd2dc"></i>Đường lọc EQ</button>
+              <button class="chip on" id="chipFft"><i style="background:#f0e442"></i>Phổ FFT trực tiếp</button>
+              <span style="flex:1"></span>
+              <button class="btn small" id="btnSolo">Solo Band: Tắt</button>
+              <button class="btn small" id="btnUndo" disabled>↩ Hoàn tác</button>
+              <button class="btn small" id="btnRedo" disabled>↪ Làm lại</button>
+              <span class="note" id="dragMs" style="font-family:var(--mono);font-size:12px"></span>
+            </div>
+            <p class="note" style="margin:0 0 10px">Tương tác trực tiếp: <b>kéo node</b> ngang = Fc · dọc = Gain · <b>lăn chuột trên node</b> = Q · <b>Shift+kéo</b> khóa Fc · <b>Alt+kéo</b> khóa Gain · <b>nhấp đúp node</b> bật/tắt band · <b>nhấp đúp vùng trống</b> tạo band mới · <b>Ctrl+Z / Ctrl+Shift+Z</b> hoàn tác/làm lại. Nhấp vào đồ thị rồi dùng phím: <b>[ ]</b> hoặc <b>1–0</b> chọn band, <b>↑↓</b> Gain ±0.1 dB, <b>←→</b> Fc ±1 Hz (giữ Shift = nudge thô), <b>PgUp/PgDn</b> Q, <b>B</b> bật/tắt band, <b>S</b> solo.</p>
+            <div class="graphbox">
+              <canvas id="graph" tabindex="0" aria-label="Đồ thị đáp tuyến EQ tương tác: kéo node để chỉnh tần số và gain, lăn chuột trên node để chỉnh Q, dùng phím mũi tên khi đồ thị đang focus"></canvas>
+              <div class="tooltip" id="gtip"></div>
+            </div>
+            <div class="legend">
+              <span><i class="swatch"></i>Đáp tuyến EQ tổng</span>
+              <span><i class="swatch amber"></i>EQ + Pre-amp</span>
+              <span><i class="swatch dash"></i>Band đang chọn</span>
+              <span id="lgRaw" style="display:none"><i class="swatch" style="background:#d7dee8"></i><span id="lgRawTxt">Đáp tuyến tai nghe (chưa làm mượt)</span></span>
+              <span id="lgTgt" style="display:none"><i class="swatch" style="background:#3ddc84"></i>Target</span>
+              <span id="lgEq" style="display:none"><i class="swatch" style="background:#ff8c42"></i>Tai nghe sau EQ (đường đã làm mượt + EQ)</span>
+              <span id="lgFft"><i class="swatch" style="background:#f0e442"></i>Phổ FFT trực tiếp (analyser)</span>
+              <span id="hoverRead" style="font-family:var(--mono)"></span>
+            </div>
+            <div id="firCtl" style="display:none;margin-top:12px">
+              <div class="ctl" style="margin:0 0 8px">
+                <label>Độ dài FIR (số tap N) <output id="firLenOut">1023 tap</output></label>
+                <div class="seg" id="firLenSeg">
+                  <button data-n="255">255</button>
+                  <button data-n="511">511</button>
+                  <button data-n="1023" class="on">1023</button>
+                </div>
+              </div>
+              <div class="formula" id="firInfo">Group delay = (N−1)/2 = <b>511 samples</b> ≈ 10.65 ms @ 48 kHz — hằng số ở mọi tần số (pha tuyến tính). IR được suy ra từ đáp tuyến EQ: lấy mẫu biên độ → IFFT 4096 → cửa sổ Hann → FIR đối xứng. Chập trong worklet bằng Partitioned FFT Convolution (Overlap-Add: block 128 mẫu, FFT 256, 8 partition ở N = 1023) — cùng đáp tuyến với chập trực tiếp nhưng nhẹ hơn nhiều ở N lớn; chập trực tiếp chỉ còn là đường dự phòng khi render quantum khác 128 mẫu.</div>
+            </div>
+            <!-- ======= PHASE & GROUP DELAY (Giai đoạn 6) — đồng bộ trục tần số với đồ thị chính ======= -->
+            <div style="margin-top:14px">
+              <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:8px">
+                <span style="font-size:12.5px;color:var(--mut)">Phase Response:</span>
+                <button class="chip on" id="qaPhaseW">Wrapped ±180°</button>
+                <button class="chip" id="qaPhaseU">Unwrapped</button>
+                <span style="flex:1"></span>
+                <span class="note" id="qaPhaseRead" style="font-family:var(--mono);font-size:12px">pha tại 1 kHz: —</span>
+              </div>
+              <canvas class="qacv" id="qaPhaseCv" aria-label="Đồ thị đáp tuyến pha theo tần số"></canvas>
+              <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:10px 0 8px">
+                <span style="font-size:12.5px;color:var(--mut)">Group Delay τ = −dφ/dω (ms):</span>
+                <span class="note" id="qaGdRead" style="font-family:var(--mono);font-size:12px">tối đa dưới 100 Hz: —</span>
+              </div>
+              <canvas class="qacv" id="qaGdCv" aria-label="Đồ thị group delay theo tần số"></canvas>
+              <div class="qawarn" id="qaGdWarn"></div>
+              <p class="note" style="margin:8px 0 0">Cả hai đồ thị tính <b>giải tích</b> từ đúng các hệ số biquad đang hoạt động (EQ 10 hoặc 20 band theo chế độ đang chọn + shelf loudness + notch cá nhân khi bật; ở chế độ FIR là pha tuyến tính −ω·(N−1)/2), dùng chung trục log 20 Hz–20 kHz với đồ thị đáp tuyến phía trên và vẽ lại mỗi khi bạn kéo node hay đổi cấu hình.</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- ======= METERS / GAIN STAGING ======= -->
+        <div>
+          <div class="panel">
+            <h2>Đo mức &amp; Limiter</h2>
+            <div class="meterrow">
+              <label>Đỉnh đầu ra (sample peak) <output id="mPeakOut">−∞ dBFS</output></label>
+              <div class="meter"><i id="mPeakBar"></i><span class="ceil" id="ceilMark"></span></div>
+            </div>
+            <div class="meterrow">
+              <label>True-Peak ước lượng (oversample ×16, windowed-sinc) <output id="mTp">−∞ dBTP</output></label>
+              <div class="meter"><i id="mTpBar"></i></div>
+            </div>
+            <canvas id="spec" width="268" height="74"></canvas>
+            <div style="height:8px"></div>
+            <div class="kv"><span>Trần limiter (ceiling)</span><b class="red">−1.0 dBTP</b></div>
+            <div class="kv"><span>Limiter</span><span class="limbadge" id="limBadge">ĐANG NGHỈ</span></div>
+            <div class="kv"><span>Gain reduction</span><b id="kvGr">0.0 dB</b></div>
+            <div class="kv"><span>Trạng thái limiter</span><b id="kvLimState">Bật</b></div>
+            <button class="btn small" id="btnLimiter" style="margin-top:8px">Tắt limiter</button>
+          </div>
+
+          <div class="panel" style="margin-top:14px">
+            <h2>Pre-amp tự động</h2>
+            <div class="kv"><span>Đỉnh đáp tuyến dương lớn nhất</span><b class="amber" id="kvMaxPos">+0.00 dB</b></div>
+            <div class="kv"><span>Tại tần số</span><b id="kvMaxFreq">—</b></div>
+            <div class="kv"><span>Headroom tới trần −1.0 dBTP</span><b>1.0 dB</b></div>
+            <div class="kv"><span>Pre-amp áp dụng</span><b class="amber" id="kvPreamp">0.00 dB</b></div>
+            <div class="ctl">
+              <label>Headroom phụ thêm <output id="extraOut">0.0 dB</output></label>
+              <input type="range" id="extraHead" min="0" max="6" step="0.5" value="0" />
+            </div>
+            <div class="ctl">
+              <label>Chế độ pre-amp <output id="preModeOut">Tự động</output></label>
+              <div class="seg">
+                <button id="preAuto" class="on">Tự động</button>
+                <button id="preManual">Thủ công</button>
+              </div>
+            </div>
+            <div class="ctl" id="manualWrap" style="display:none">
+              <label>Pre-amp thủ công <output id="manualOut">0.0 dB</output></label>
+              <input type="range" id="manualPre" min="-30" max="6" step="0.1" value="0" />
+            </div>
+            <div class="formula">Pre-amp = −( max dương + <b>1.0 dB</b> headroom + phụ thêm )<br/>Đỉnh EQ +6.00 dB → Pre-amp = <b>−7.00 dB</b> → đỉnh tổng sau EQ = −1.0 dBTP, đúng trần limiter.</div>
+          </div>
+
+          <div class="panel" style="margin-top:14px">
+            <h2>Preset nhanh</h2>
+            <div style="display:flex;flex-wrap:wrap;gap:8px">
+              <button class="btn small preset" data-p="flat">Phẳng (Flat)</button>
+              <button class="btn small preset" data-p="bass">Tăng Bass</button>
+              <button class="btn small preset" data-p="vocal">Rõ giọng hát</button>
+              <button class="btn small preset" data-p="treble">Sáng / Air</button>
+              <button class="btn small preset" data-p="loud">Loudness nhẹ</button>
+            </div>
+            <p class="note" style="margin:10px 0 0">Preset chỉ đặt gain các band — bạn vẫn chỉnh tiếp gain/Q từng band theo thời gian thực.</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- ======= AUTOEQ (Giai đoạn 2) ======= -->
+      <div class="cols" style="margin-top:14px">
+        <div class="panel">
+          <h2>AutoEQ — Tai nghe → Target <span class="r">Giai đoạn 2/6</span></h2>
+          <p class="note" style="margin:0 0 10px">Luồng của AutoEQ: <b>Bước 1</b> chọn tai nghe — đáp tuyến của chính tai nghe đó là đường nguồn · <b>Bước 2</b> chọn Target · <b>Bước 3</b> chạy AutoEQ để tính correction đưa tai nghe về target.</p>
+          <label class="flabel" for="aePhoneSearch">Bước 1 — Chọn tai nghe (đáp tuyến của tai nghe này là đường nguồn) — chọn trong thanh danh sách bên dưới, ô tìm kiếm nằm ngay trong thanh danh sách</label>
+          <div class="phonelist">
+            <div class="plhead"><span class="pltitle">🎧 Danh sách tai nghe</span><input class="numin plsearch" id="aePhoneSearch" type="text" value="Sennheiser HD 600" placeholder="🔍 Tìm trong danh sách: hd 600, aria, xm5, sundara, hexa…" autocomplete="off" /></div>
+            <div class="dbres" id="aePhoneResults"></div>
+          </div>
+          <p class="note" id="aePhoneSel" style="margin:8px 0 0">Đang chọn: <b>Sennheiser HD 600</b> · Sennheiser · Over-ear · rig GRAS 711 (RA0045) · nguồn đo: oratory1990 (dữ liệu đo thật từ AutoEq)</p>
+          <p class="note" id="aePhoneCount" style="margin:6px 0 0"></p>
+          <div class="frow" style="margin-top:10px">
+            <div>
+              <label class="flabel" for="aeRig">Rig đo của tai nghe đã chọn (không trộn rig)</label>
+              <select class="aesel" id="aeRig">
+                <option value="711">IEC 60318-4 (711 coupler)</option>
+                <option value="5128">B&amp;K 5128 (ITU-T P.57 Type 4.3)</option>
+                <option value="other">Rig khác / chưa xác định</option>
+              </select>
+            </div>
+            <div>
+              <label class="flabel" for="aeFile">Thêm tai nghe của bạn (qua file đo .csv / .txt — REW / AutoEQ: cột tần số Hz, SPL dB)</label>
+              <input type="file" id="aeFile" class="fileinput" accept=".csv,.txt,text/csv,text/plain" style="width:100%" />
+            </div>
+          </div>
+          <p class="note" id="aeMeasInfo" style="margin:10px 0 0">Đang chọn sẵn <b>Sennheiser HD 600</b> → Target <b>Harman Over-Ear 2018</b>: đường “Đáp tuyến tai nghe: Sennheiser HD 600” và đường Target hiện ngay trên đồ thị phía dưới (mọi đường đều chuẩn hoá 0 dB tại 1 kHz). Đổi tai nghe ở Bước 1 hoặc thêm tai nghe của bạn qua file đo nếu muốn.</p>
+          <div class="aeerr" id="aeErr"></div>
+          <div style="height:12px"></div>
+          <div class="frow">
+            <div>
+              <label class="flabel" for="aeTarget">Bước 2 — Target Curve (đích đến của tai nghe)</label>
+              <select class="aesel" id="aeTarget">
+                <option value="harmanOE" selected>Harman Over-Ear 2018</option>
+                <option value="harmanIE">Harman In-Ear 2019 v2</option>
+                <option value="ief">IEF Neutral 2023</option>
+                <option value="jm1">JM-1 Diffuse Field</option>
+                <option value="diffuseField">Diffuse Field (ISO 11904-1)</option>
+                <option value="diffuseFieldKemar">Diffuse Field (GRAS KEMAR)</option>
+                <option value="freeField">Free Field (ISO 11904-1) — xấp xỉ từ đồ thị công bố</option>
+                <option value="harmanOE2013">Harman Over-Ear 2013</option>
+                <option value="harmanOE2015">Harman Over-Ear 2015</option>
+                <option value="oratoryOptimum">oratory1990 Optimum Hifi (Over-Ear)</option>
+                <option value="rtings">RTINGS Original</option>
+                <option value="soundguys">SoundGuys Preference — xấp xỉ từ đồ thị công bố</option>
+              </select>
+            </div>
+            <div>
+              <label class="flabel" for="aeBands">Số band tối ưu — chọn 5–20 band; ở engine 20 band, chọn 20 band để solver sinh đủ 20 band thật (Chế độ Tự Động Toàn Diện tự đồng bộ số này theo engine khi nó tự đổi số band)</label>
+              <select class="aesel" id="aeBands">
+                <option>5</option><option>6</option><option>7</option><option>8</option><option>9</option><option selected>10</option><option>11</option><option>12</option><option>13</option><option>14</option><option>15</option><option>16</option><option>17</option><option>18</option><option>19</option><option>20</option>
+              </select>
+            </div>
+          </div>
+          <p class="note" id="aeTargetNote" style="margin:8px 0 0"></p>
+          <div class="ctl">
+            <label>Tilt (nghiêng phổ) <output id="aeTiltOut">0.00 dB/oct</output></label>
+            <input type="range" id="aeTilt" min="-1" max="1" step="0.05" value="0" />
+          </div>
+          <div class="ctl">
+            <label>Bass shelf <output id="aeBassOut">0.0 dB</output></label>
+            <input type="range" id="aeBass" min="-6" max="6" step="0.5" value="0" />
+          </div>
+          <div class="ctl">
+            <label>Ear Gain (bù gain tai ~3 kHz) <output id="aeEarOut">0.0 dB</output></label>
+            <input type="range" id="aeEar" min="-4" max="4" step="0.5" value="0" />
+          </div>
+          <div class="ctl">
+            <label><input type="checkbox" id="aePreserveChar" /> Bảo toàn đặc tính gốc (Tilt/Bass)</label>
+            <p class="note" style="margin:4px 0 0">Khi bật, solver tự khớp phần nghiêng phổ và bass shelf chung của correction theo hai thước đo — độ dốc 500 Hz–8 kHz và mức bass trung bình 50–150 Hz (cùng trọng số tri giác W(f), vùng null đã loại) — rồi trừ chúng đi — đáp tuyến sau EQ giữ nguyên tilt/bass gốc của tai nghe, chỉ sửa các lệch cục bộ (đỉnh/vực). Slider Tilt/Bass ở trên vẫn cộng thêm gu nghe của bạn lên trên đặc tính gốc. Mặc định tắt để không đổi hành vi AutoEQ hiện tại; đây là lựa chọn gu nghe nên Chế độ Tự Động Toàn Diện không tự bật nó, nhưng khi bật thì việc khớp tilt/bass là hoàn toàn tự động, không cần chỉnh thêm.</p>
+          </div>
+          <div class="ctl">
+            <label><input type="checkbox" id="aeRangeOn" /> Giới hạn dải tần sửa — chỉ hiệu chỉnh trong dải chọn</label>
+            <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-top:6px">
+              <label>Từ <input type="number" id="aeRangeLo" min="20" max="20000" step="1" value="20" style="width:92px" /> Hz</label>
+              <label>đến <input type="number" id="aeRangeHi" min="20" max="20000" step="1" value="10000" style="width:92px" /> Hz</label>
+            </div>
+            <p class="note" style="margin:4px 0 0">Khi bật, solver chỉ sửa trong dải này: ngoài dải trọng số bằng 0 và band nào có tần số trung tâm nằm ngoài dải rõ rệt sẽ bị vô hiệu hoá (đúng cơ chế bảo vệ vùng null; band sát mép dải trong vòng 1/24 octave được giữ vì tác dụng của nó dồn ngay tại mép) — đáp tuyến ngoài dải giữ nguyên như gốc, trừ phần đuôi tự nhiên của band sát mép dải. Hữu ích khi chỉ muốn chỉnh bass (ví dụ 20–250 Hz) hoặc không tin cậy số đo ở treble cao (ví dụ chỉ sửa đến 8–10 kHz). RMS trước/sau ở panel kết quả vẫn tính trên toàn dải 20 Hz–10 kHz như thường lệ; hàng “RMS trong dải sửa” cho con số riêng trong dải đã chọn. Trạng thái được lưu tự động; mặc định tắt.</p>
+          </div>
+          <div class="ctl">
+            <label class="flabel" for="aeGainCapSel">Giới hạn gain mỗi band AutoEQ</label>
+            <select class="aesel" id="aeGainCapSel">
+              <option value="0" selected>Không giới hạn thêm (mặc định — chỉ giới hạn cứng ±12 dB, ±8 dB trên 6 kHz)</option>
+              <option value="3">±3 dB</option>
+              <option value="6">±6 dB</option>
+              <option value="9">±9 dB</option>
+            </select>
+            <p class="note" style="margin:4px 0 0">Khi chọn một giới hạn, sau khi solver chạy xong, band nào vượt giới hạn sẽ bị kẹp về đúng giới hạn đó (kẹp ở tầng hoàn thiện aeComputeFinish, cùng điểm chung với giới hạn dải tần — solver và Worker giữ nguyên nên parity không đổi) và được liệt kê trong Cảnh báo an toàn; RMS sau tính sau khi kẹp nên phản ánh đúng kết quả áp lên engine. Mặc định “Không giới hạn thêm” giữ nguyên tuyệt đối kết quả cũ. Lựa chọn được lưu tự động; áp cho cả nút Bước 3, hàng loạt và So sánh target vì cả ba đều đi qua aeAdj().</p>
+          </div>
+          <div class="ctl">
+            <label><input type="checkbox" id="aeCutOnly" /> Chỉ cắt — không boost (gain các band chỉ ≤ 0 dB)</label>
+            <p class="note" style="margin:4px 0 0">Khi bật, sau khi solver chạy xong, band nào có gain dương sẽ bị đưa về 0 dB (phẳng) và được liệt kê trong Cảnh báo an toàn; RMS sau tính sau khi cắt nên phản ánh đúng kết quả áp lên engine. Hữu ích khi chỉ muốn hạ các đỉnh của tai nghe mà không tăng bất kỳ dải nào (tránh clipping do boost). Mặc định tắt giữ nguyên tuyệt đối kết quả cũ. Lựa chọn được lưu tự động; áp cho cả nút Bước 3, hàng loạt và So sánh target vì cả ba đều đi qua aeAdj().</p>
+          </div>
+          <div class="ctl">
+            <label class="flabel" for="aeDeadbandSel">Bỏ band nhỏ — đơn giản hoá EQ (deadband)</label>
+            <select class="aesel" id="aeDeadbandSel">
+              <option value="0" selected>Không bỏ band (mặc định)</option>
+              <option value="0.25">Bỏ band |gain| &lt; 0,25 dB</option>
+              <option value="0.5">Bỏ band |gain| &lt; 0,5 dB</option>
+              <option value="1">Bỏ band |gain| &lt; 1 dB</option>
+            </select>
+            <p class="note" style="margin:4px 0 0">Khi chọn một ngưỡng, sau khi solver chạy xong (và sau kẹp gain / chỉ cắt nếu có), band nào có |gain| nhỏ hơn ngưỡng sẽ bị đưa về 0 dB (phẳng) và được liệt kê trong Cảnh báo an toàn; RMS sau tính sau khi bỏ band nên phản ánh đúng kết quả áp lên engine. Hữu ích khi muốn preset gọn, dễ đọc và dễ chỉnh tay — các band chỉ đóng góp vài phần mười dB thường không nghe thấy nhưng vẫn làm rối preset. Mặc định “Không bỏ band” giữ nguyên tuyệt đối kết quả cũ. Lựa chọn được lưu tự động; áp cho cả nút Bước 3, hàng loạt và So sánh target vì cả ba đều đi qua aeAdj().</p>
+          </div>
+          <div class="ctl">
+            <label class="flabel" for="aeRoundSel">Làm tròn gain mỗi band — khớp bước chỉnh của thiết bị</label>
+            <select class="aesel" id="aeRoundSel">
+              <option value="0" selected>Không làm tròn (mặc định)</option>
+              <option value="0.25">Làm tròn về bội số 0,25 dB</option>
+              <option value="0.5">Làm tròn về bội số 0,5 dB</option>
+              <option value="1">Làm tròn về bội số 1 dB</option>
+            </select>
+            <p class="note" style="margin:4px 0 0">Khi chọn một bước, sau khi solver chạy xong (và sau kẹp gain / chỉ cắt / bỏ band nhỏ nếu có), gain mỗi band được làm tròn về bội số gần nhất của bước đó và được liệt kê trong Cảnh báo an toàn; RMS sau tính sau khi làm tròn nên phản ánh đúng kết quả áp lên engine. Hữu ích khi thiết bị đích chỉ chỉnh gain theo bước thô (ví dụ 0,5 dB) hoặc khi muốn preset gọn, dễ đọc, dễ chỉnh tay — khác với làm tròn chỉ lúc xuất preset theo hồ sơ thiết bị, đây là làm tròn ngay trên kết quả AutoEQ. Mặc định “Không làm tròn” giữ nguyên tuyệt đối kết quả cũ. Lựa chọn được lưu tự động; áp cho cả nút Bước 3, hàng loạt và So sánh target vì cả ba đều đi qua aeAdj().</p>
+          </div>
+          <div class="ctl">
+            <label class="flabel" for="aeSmoothSel">Mức làm mượt đáp tuyến đo trước khi solve</label>
+            <select class="aesel" id="aeSmoothSel">
+              <option value="psycho">Psychoacoustic (mặc định): 1/6 oct dưới 6 kHz, 1/12 oct từ 6 kHz</option>
+              <option value="third">1/3 octave — làm mượt mạnh, bỏ qua chi tiết hẹp</option>
+              <option value="sixth">1/6 octave — cố định toàn dải</option>
+              <option value="twelfth">1/12 octave — làm mượt nhẹ, giữ chi tiết hẹp</option>
+            </select>
+            <p class="note" style="margin:4px 0 0">Đáp tuyến đưa vào solver là bản đã làm mượt của đường đo (đường thô và phát hiện null không đổi). Mặc định là đúng hành vi hiện tại nên không đổi kết quả cũ; đổi lựa chọn sẽ nạp lại đường đo đang chọn với mức mới. Nếu công tắc smoothing ERB ở panel Nâng cấp 1 đang bật thì ERB ghi đè lựa chọn này cho tới khi tắt ERB.</p>
+            <div class="kv"><span>Đang dùng</span><b id="aeSmoothInfo">Psychoacoustic (mặc định)</b></div>
+          </div>
+          <button class="btn primary" id="btnAeMaxAcc" style="width:100%;justify-content:center;margin-top:10px">&#9733; EQ chu&#7849;n x&#225;c t&#7889;i &#273;a &#8212; 1 l&#7847;n b&#7845;m (target g&#7889;c &#183; kh&#244;ng h&#7853;u k&#7923; &#183; gi&#7919; s&#7889; band &#273;ang ch&#7885;n)</button>
+          <p class="note" id="aeMaxAccInfo" style="margin:6px 0 10px">M&#7897;t l&#7847;n b&#7845;m t&#7921; &#273;&#7863;t: <b>giữ nguyên số band bạn đang chọn</b>, <b>t&#7855;t m&#244; h&#236;nh 13 tham s&#7889; Kh&#7889;i 6</b> (gi&#7843;i th&#7859;ng tr&#234;n target g&#7889;c &#273;&#227; ch&#7885;n &#7903; B&#432;&#7899;c 2 &#8212; kh&#244;ng qua l&#7899;p kh&#7899;p m&#244; h&#236;nh n&#234;n kh&#244;ng t&#7889;n sai s&#7889; kh&#7899;p), <b>m&#7913;c l&#224;m m&#432;&#7907;t psychoacoustic m&#7863;c &#273;&#7883;nh</b>, t&#7855;t b&#7843;o to&#224;n &#273;&#7863;c t&#237;nh, gi&#7899;i h&#7841;n gain, ch&#7881; c&#7855;t, b&#7887; band nh&#7887; v&#224; l&#224;m tr&#242;n gain, <b>b&#7853;t gi&#7899;i h&#7841;n d&#7843;i t&#7847;n 20&#8211;10.000 Hz</b> &#8212; r&#7891;i ch&#7841;y ngay B&#432;&#7899;c 3. Tilt/Bass/Ear &#7903; B&#432;&#7899;c 2 l&#224; gu target c&#7911;a b&#7841;n n&#234;n n&#250;t n&#224;y kh&#244;ng &#273;&#7909;ng v&#224;o. N&#250;t n&#224;y c&#361;ng <b>t&#7855;t lu&#244;n smoothing ERB</b> (N&#226;ng c&#7845;p 1) v&#224; <b>b&#7853;t tr&#7885;ng s&#7889; ERB c&#7911;a tu&#7923; ch&#7885;n solver Kh&#7889;i 3</b> (cap gain/Q gi&#7919; m&#7863;c &#273;&#7883;nh 12/10). &#272;&#226;y l&#224; c&#7845;u h&#236;nh cho RMS sau th&#7845;p nh&#7845;t theo lab 6 &#244; chu&#7849;n ng&#224;y 07/11/2026 (trung b&#236;nh 0,125 &#8594; 0,107 dB, 6/6 &#244; kh&#244;ng t&#7879; h&#417;n): nếu bạn chọn 20 band thì RMS thường thấp hơn 10 band (20 band thắng ở 93,1% lượt chạy toàn kho); chọn 10 band khi cần xuất cho thiết bị chỉ hỗ trợ 10 band.</p>
+          <button class="btn primary" id="btnAutoEq" disabled style="width:100%;justify-content:center;margin-top:4px">Bước 3 — Chạy AutoEQ: đưa tai nghe về target → áp vào PEQ</button>
+          <p class="note" style="margin:10px 0 0">Bộ tối ưu dùng đường <b>đã làm mượt theo mức chọn ở trên</b> (mặc định psychoacoustic: 1/6 oct dưới 6 kHz, 1/12 oct từ 6 kHz) trên lưới log 1/24 oct, 20 Hz–20 kHz: Regularized Least Squares khởi tạo gain, sau đó Nelder–Mead tinh chỉnh (Fc, Gain, Q) từng band, hàm mục tiêu có trọng số tri giác W(f) (cao ở 20 Hz–4 kHz, giảm trên 10 kHz). Safety cứng: trên 6 kHz Q ≤ 6 và gain trong ±8 dB; toàn cục gain ±12 dB, Q 0.5–10; không bao giờ boost null hẹp.</p>
+          <div style="margin-top:14px">
+            <h2 style="margin:0 0 8px">AutoEQ hàng loạt — nhiều tai nghe, một file gộp</h2>
+            <p class="note" style="margin:0 0 10px">Chạy AutoEQ cho nhiều tai nghe đã chọn với đúng target, số band, Tilt/Bass/Ear, bảo toàn đặc tính, giới hạn dải tần, giới hạn gain mỗi band, chỉ cắt, bỏ band nhỏ, làm tròn gain và mức làm mượt đang đặt ở Bước 2–3. Mỗi tai nghe được tính bằng đường aeCompute đồng bộ trên chính đáp tuyến của nó, rồi trả về một mục preset APO riêng trong file gộp — tai nghe đang chọn ở Bước 1 và EQ engine hiện tại KHÔNG đổi. Tối đa 20 tai nghe mỗi lần bấm, để một lần chạy không kéo dài quá lâu.</p>
+            <label class="flabel" for="batchSearch">Tìm tai nghe để thêm vào danh sách hàng loạt — tích vào ô vuông của từng tai nghe cần chạy</label>
+            <input class="numin plsearch" id="batchSearch" type="text" value="" placeholder="🔍 Tìm trong kho: hd 600, aria, xm5, sundara…" autocomplete="off" style="width:100%" />
+            <div class="dbres" id="batchList"></div>
+            <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px">
+              <button class="btn small" id="batchSelAll">Chọn tất cả kết quả đang hiện</button>
+              <button class="btn small" id="batchSelNone">Bỏ chọn tất cả</button>
+              <button class="btn primary" id="batchRun">Chạy AutoEQ hàng loạt cho tai nghe đã chọn</button>
+              <button class="btn" id="batchDownload">Tải file gộp (.txt)</button>
+            </div>
+            <p class="note" id="batchSelInfo" style="margin:8px 0 0">Chưa chọn tai nghe nào — gõ vào ô tìm kiếm rồi tích chọn, lựa chọn được lưu tự động.</p>
+            <p class="note" id="batchInfo" style="margin:8px 0 0">Chưa chạy hàng loạt — chọn tai nghe rồi bấm “Chạy AutoEQ hàng loạt”.</p>
+            <table style="margin-top:8px" id="batchTable">
+              <tr><th>Tai nghe</th><th>RMS trước (dB)</th><th>RMS sau (dB)</th><th>Pre-amp (dB)</th></tr>
+              <tr><td colspan="4" style="text-align:left;color:var(--dim);font-family:var(--sans);font-size:13px">Chưa có kết quả — chạy hàng loạt để xem bảng tổng kết.</td></tr>
+            </table>
+            <textarea id="batchText" readonly rows="10" style="width:100%;margin-top:8px;font-family:var(--mono);font-size:12px"></textarea>
+            <p class="note" style="margin:8px 0 0">File gộp: mỗi tai nghe một mục, mở đầu bằng dòng ##### tên tai nghe, tiếp theo là Preamp và các dòng Filter APO (PK/LSC/HSC) đúng cú pháp Equalizer APO như nút xuất APO đơn. Pre-amp của mỗi mục theo đúng luật Giai đoạn 1: −(đỉnh dương lớn nhất của đáp tuyến EQ + 1,0 dB headroom), bằng 0 khi đáp tuyến không có đỉnh dương; đỉnh tính trên lưới solver 1/24 octave. RMS trước/sau tính trên dải 20 Hz–10 kHz như panel kết quả AutoEQ.</p>
+          </div>
+          <div style="margin-top:14px">
+            <h2 style="margin:0 0 8px">So sánh target — tai nghe này khớp target nào sát nhất</h2>
+            <p class="note" style="margin:0 0 10px">Chạy AutoEQ cho tai nghe đang chọn với mọi target trong ô Bước 2, dùng đúng số band, Tilt/Bass/Ear, bảo toàn đặc tính, giới hạn dải tần, giới hạn gain mỗi band, chỉ cắt, bỏ band nhỏ, làm tròn gain và mức làm mượt đang đặt — tai nghe đang chọn và EQ engine KHÔNG đổi (chỉ bấm “Chọn target này” rồi bấm Bước 3 mới áp lên engine). RMS sau thấp nhất nghĩa là khớp sát nhất về số đo, không đồng nghĩa gu nghe hay nhất — hãy chọn theo tai nghe của bạn.</p>
+            <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px">
+              <button class="btn primary" id="tgtCmpRun">So sánh tất cả target cho tai nghe đang chọn</button>
+            </div>
+            <p class="note" id="tgtCmpInfo" style="margin:8px 0 0">Chưa so sánh — bấm nút để chạy AutoEQ cho mọi target trong ô Bước 2.</p>
+            <table style="margin-top:8px" id="tgtCmpTable">
+              <tr><th>Target</th><th>RMS trước (dB)</th><th>RMS sau (dB)</th><th>Pre-amp (dB)</th><th></th></tr>
+              <tr><td colspan="5" style="text-align:left;color:var(--dim);font-family:var(--sans);font-size:13px">Chưa có kết quả — bấm “So sánh tất cả target” để xem bảng tổng kết.</td></tr>
+            </table>
+          </div>
+        </div>
+
+        <div class="panel">
+          <h2>Kết quả tối ưu <span class="r" id="aeResMeta">chưa chạy</span></h2>
+          <div class="bigstat">
+            <div><b id="aeRmsB">—</b><span>RMS error trước (dB, 20 Hz–10 kHz)</span></div>
+            <div><b id="aeRmsA">—</b><span>RMS error sau (dB)</span></div>
+            <div><b id="aeRed">—</b><span>Mức giảm error</span></div>
+            <div><b id="aeMs">—</b><span>Thời gian tối ưu</span></div>
+          </div>
+          <div class="kv"><span>Pre-amp sau AutoEQ (luật Giai đoạn 1)</span><b class="amber" id="aePre">—</b></div>
+          <div class="kv"><span>Luồng giải AutoEQ</span><b id="aeWorkerInfo">—</b></div>
+          <div class="kv"><span>RMS có trọng số tri giác W(f) trước → sau (20 Hz–10 kHz)</span><b id="aeRmsW">—</b></div>
+          <div class="kv"><span>RMS trong dải sửa (khi bật giới hạn dải tần)</span><b id="aeRmsRange">—</b></div>
+          <div class="kv"><span>Tai nghe đang dùng</span><b id="aeUsedMeas">—</b></div>
+          <div class="kv"><span>Target đang dùng</span><b id="aeUsedTgt">—</b></div>
+          <div class="kv"><span>Bảo toàn đặc tính gốc</span><b id="aePreserveRes">—</b></div>
+          <table style="margin-top:8px" id="aeBandTable">
+            <tr><th>Band → Engine</th><th>Loại</th><th>Fc</th><th>Gain</th><th>Q</th></tr>
+            <tr><td colspan="5" style="text-align:left;color:var(--dim);font-family:var(--sans);font-size:13px">Chưa có kết quả — chạy AutoEQ để xem bảng band.</td></tr>
+          </table>
+          <h2 style="margin-top:16px">Cảnh báo an toàn (Acoustic Safety)</h2>
+          <ul class="warnlist" id="aeWarn"><li class="ok">Chưa chạy — mọi correction bị giới hạn hoặc bỏ qua sẽ được liệt kê tại đây kèm lý do, không clamp im lặng.</li></ul>
+        </div>
+      </div>
+
+      <!-- ======= PSYCHOACOUSTICS (Giai đoạn 3) ======= -->
+      <div class="panel" style="margin-top:14px">
+        <h2>Psychoacoustics — Giai đoạn 3/6 <span class="r">4 mô-đun độc lập</span></h2>
+        <div class="psybar">
+          <button class="btn small tog" id="psBypass">Bypass Psycho: Tắt (đang áp dụng)</button>
+          <span class="note">Mỗi mô-đun bật/tắt riêng; bypass tổng để so sánh A/B nhanh. Thứ tự chuỗi tín hiệu: PEQ + shelf loudness + notch cá nhân → Crossfeed → Limiter −1.0 dBTP. Mọi mô-đun đều được lưu vào preset schema v2.</span>
+        </div>
+      </div>
+
+      <div class="cols" style="margin-top:14px">
+        <div class="panel">
+          <h2>1 · Bù Loudness ISO 226 <span class="r" id="psLoudState">ĐANG TẮT</span></h2>
+          <button class="btn small tog" id="psLoudToggle">Bật bù loudness</button>
+          <button class="btn small" id="psNight" style="margin-left:6px">Night Mode (một chạm)</button>
+          <div class="ctl">
+            <label>Mức tham chiếu (mức master khi cân nhạc) <output id="psRefOut">80 phon</output></label>
+            <input type="range" id="psRef" min="40" max="90" step="1" value="80" />
+          </div>
+          <div class="ctl">
+            <label>Mức nghe hiện tại <output id="psListenOut">80 phon</output></label>
+            <input type="range" id="psListen" min="20" max="90" step="1" value="80" />
+          </div>
+          <div class="kv"><span>Hiệu contour tại 50 Hz (theo bảng ISO)</span><b class="cyan" id="psCompLow">0.00 dB</b></div>
+          <div class="kv"><span>Hiệu contour tại 10 kHz (theo bảng ISO)</span><b class="cyan" id="psCompHigh">0.00 dB</b></div>
+          <div class="kv"><span>Low shelf đang áp (90 Hz, mượt chống click)</span><b class="amber" id="psCurLow">0.00 dB</b></div>
+          <div class="kv"><span>High shelf đang áp (9 kHz)</span><b class="amber" id="psCurHigh">0.00 dB</b></div>
+          <div class="kv"><span>Sai số khớp ngân hàng loudness (20 Hz–12,5 kHz)</span><b class="cyan" id="psFitErr">—</b></div>
+          <div class="kv"><span>6 section đang áp (LS90 · P200 · P600 · P1500 · P4000 · HS9000)</span><b class="amber" id="psLoudSections">—</b></div>
+          <p class="note" style="margin:10px 0 0"><b>Nguồn số liệu &amp; phương pháp:</b> đường đẳng âm <b>ISO 226:2023(E)</b> tính bằng Công thức (1) Mục 4.1 (và Công thức (2) Mục 4.2 cho chiều nghịch) với Table 1 chính thức tại 29 tần số 1/3-octave (20 Hz–12,5 kHz), α<sub>f</sub> tại 1 kHz = 0,300, phon kẹp [0,90]; neo 1 kHz chính xác tuyệt đối theo cấu trúc công thức. Độ bù tại f = [SPL<sub>nghe</sub>(f) − phon<sub>nghe</sub>] − [SPL<sub>tham chiếu</sub>(f) − phon<sub>tham chiếu</sub>], được khớp bằng ngân hàng 6 section (LS 90 Hz · P 200/600/1500/4000 Hz · HS 9 kHz, mỗi section kẹp ±15 dB) thay cho xấp xỉ 2 shelf cũ. Kiểm chứng: neo 1 kHz = phon (lệch ≤ 0,02 dB); đối chiếu Annex B ISO 226:2023 tại 20 điểm (lệch ≤ 0,57 dB). Trên 12,5 kHz tiêu chuẩn không định nghĩa contour — đáp tuyến treble kéo dài theo dạng shelf. Night Mode: mức nghe 45 phon so với tham chiếu 80 phon + bật bù.</p>
+        </div>
+
+        <div class="panel">
+          <h2>2 · Hiệu chuẩn cộng hưởng ống tai cá nhân <span class="r" id="psNotchState">CHƯA ĐẶT</span></h2>
+          <div class="ctl" style="margin-top:0">
+            <label>Tần số tone kiểm tra (5.5–9.5 kHz) <output id="psCalOut">7000 Hz</output></label>
+            <input type="range" id="psCalFreq" min="5500" max="9500" step="10" value="7000" />
+          </div>
+          <div style="display:flex;flex-wrap:wrap;gap:8px">
+            <button class="btn small" id="psTone">▶ Tone tại tần số đã chọn</button>
+            <button class="btn small" id="psSweep">Quét 5.5 → 9.5 kHz (lặp 6 giây)</button>
+            <button class="btn small" id="psMark" style="border-color:var(--amber);color:var(--amber)">Đánh dấu tần số chói nhất → đặt notch</button>
+          </div>
+          <p class="note" style="margin:8px 0 0">Kéo thanh trượt (hoặc chạy quét) bằng nguồn tone tích hợp chạy qua chính engine DSP, nghe bằng tai nghe của bạn và bấm đánh dấu tại tần số nghe chói/gắt nhất — thường là đỉnh cộng hưởng ống tai của riêng bạn.</p>
+          <div style="height:6px"></div>
+          <button class="btn small tog" id="psNotchToggle">Bật notch cá nhân</button>
+          <span class="tag hot">NOTCH CÁ NHÂN — ngoài các band PEQ của engine</span>
+          <div class="ctl">
+            <label>Độ sâu notch <output id="psDepthOut">−5.0 dB</output></label>
+            <input type="range" id="psDepth" min="-8" max="-3" step="0.5" value="-5" />
+          </div>
+          <div class="ctl">
+            <label>Q notch <output id="psQOut">4.0</output></label>
+            <input type="range" id="psNotchQ" min="1" max="8" step="0.5" value="4" />
+          </div>
+          <div class="kv"><span>Notch hiện tại</span><b class="red" id="psNotchInfo">—</b></div>
+          <p class="note" style="margin:8px 0 0">Notch là 1 biquad peaking phụ riêng, tần số do bạn đánh dấu (không bị solver AutoEQ ghi đè), hiện trên đồ thị bằng đường đáp tuyến tổng + vạch đỏ đứt nét, và được ghi nhãn riêng trong preset v2.</p>
+          <div style="height:10px"></div>
+          <div class="ctl" style="border-top:1px dashed var(--line);padding-top:10px">
+            <label><b>Suy luận từ nhạc thực tế (Pink Noise / nhạc của bạn)</b></label>
+            <p class="note" style="margin:6px 0 0">Phát pink noise tích hợp (nút “Tín hiệu demo: Pink noise” ở panel nguồn phát) hoặc file nhạc của bạn, rồi bấm quét notch dò bên dưới: một notch hẹp (−12 dB, Q 8) quét logarit 5.5 → 9.5 kHz, lặp 12 giây, chạy qua đúng engine DSP. Pink noise phẳng theo quãng tám nên khi notch dò trùng đỉnh cộng hưởng ống tai của bạn, đỉnh đó bị triệt mạnh nhất và tiếng nghe êm nhất — điểm êm nhất đó là ứng viên cộng hưởng từ nhạc thực tế, đối chiếu với điểm chói nhất của quét tone ở trên.</p>
+          </div>
+          <div style="display:flex;flex-wrap:wrap;gap:8px">
+            <button class="btn small" id="earProbeBtn">▶ Quét notch dò trên nhạc đang phát</button>
+            <button class="btn small" id="earMarkSmooth" style="border-color:var(--amber);color:var(--amber)">Đánh dấu điểm êm nhất → ứng viên ống tai</button>
+            <button class="btn small" id="earApplyRes">Áp dụng notch đã suy luận</button>
+          </div>
+          <div class="kv"><span>Notch dò đang quét</span><b id="earProbeInfo">—</b></div>
+          <div class="kv"><span>Đánh dấu quét tone (chói nhất)</span><b id="earSweepMark">—</b></div>
+          <div class="kv"><span>Đánh dấu nhạc thực tế (êm nhất)</span><b id="earNoiseMark">—</b></div>
+          <div class="kv"><span>Kết luận suy luận</span><b id="earResInfo">—</b></div>
+          <p class="note" style="margin:8px 0 0">Trung thực về phương pháp: đây là suy luận cảm nhận, không phải phép đo bằng micro — app chỉ đề xuất áp dụng khi hai đánh dấu khớp nhau trong ±2 bán âm; nếu lệch hơn, app giữ cả hai đánh dấu và không tự áp dụng. Nút áp dụng chỉ đặt tần số notch (giữ nguyên độ sâu/Q hiện tại) và cần bạn bấm tay — lựa chọn cảm nhận không bao giờ bị Chế độ Tự Động Toàn Diện tự áp. Hai đánh dấu được lưu/khôi phục cùng trạng thái tự động (localStorage, chỉ ở máy này).</p>
+        </div>
+      </div>
+
+      <!-- ======= CHAM DIEM MU DA CAU HINH (Nhom 2 v2) ======= -->
+      <div class="panel" style="margin-top:14px">
+        <h2>Chấm điểm mù đa cấu hình — Preference Rating (Nhóm 2 v2)</h2>
+        <p class="note" style="margin:8px 0 0">Khác Blind A/B/X ở dưới (đoán X là A hay B): đây là <b>chấm điểm ưa thích cho tối đa 4 cấu hình EQ</b>. Cách dùng: chỉnh một cấu hình EQ → “Thêm cấu hình hiện tại làm ứng viên” (lặp lại cho các cấu hình khác, tối đa 4) → “Bắt đầu chấm mù”: app xáo trộn thứ tự và giấu tên ứng viên, bạn chỉ thấy “Mẫu 1…N” → nghe từng mẫu qua nguồn phát hiện tại (pink noise hoặc file nhạc của bạn) → chấm 1–5 sao cho mẫu đang nghe → hết các mẫu mới bấm “Hiện kết quả” để xem xếp hạng. Nghe lại mẫu trước được (nút “Mẫu trước”), chấm lại mẫu đang nghe được trước khi hiện kết quả.</p>
+        <div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:10px">
+          <button class="btn small" id="blindAddBtn">＋ Thêm cấu hình hiện tại làm ứng viên</button>
+          <button class="btn small" id="blindClearBtn">Xoá tất cả ứng viên</button>
+          <button class="btn small" id="blindStartBtn">Bắt đầu chấm mù (xáo trộn thứ tự)</button>
+        </div>
+        <div id="blindCands" style="margin-top:8px"></div>
+        <div style="margin-top:8px">
+          <label style="display:flex;gap:8px;align-items:flex-start;cursor:pointer">
+            <input type="checkbox" id="blindLufsToggle" checked style="margin-top:3px">
+            <span><b>Cân loudness LUFS giữa các ứng viên</b> (ITU-R BS.1770, cùng phổ mô hình với Blind A/B/X): trim chỉ giảm, neo theo ứng viên nhỏ nhất, tự áp khi nghe mẫu để loại thiên kiến “to hơn = hay hơn”.</span>
+          </label>
+        </div>
+        <div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:8px">
+          <button class="btn small" id="blindListenBtn">▶ Nghe mẫu này</button>
+          <button class="btn small" id="blindPrevBtn">◀ Mẫu trước</button>
+          <button class="btn small" id="blindNextBtn">Mẫu tiếp theo ▶</button>
+          <button class="btn small" id="blindRevealBtn">Hiện kết quả</button>
+          <button class="btn small" id="blindApplyBtn">Áp dụng cấu hình thắng (bấm tay)</button>
+          <button class="btn small" id="blindStopBtn">Dừng / khôi phục cấu hình gốc</button>
+        </div>
+        <div class="kv"><span>Mẫu đang chấm</span><b id="blindSampleInfo">—</b></div>
+        <div class="ctl">
+          <label>Chấm mẫu đang nghe (1 = kém nhất, 5 = thích nhất)</label>
+          <div class="seg" id="blindRateSeg">
+            <button data-rate="1">1 sao</button>
+            <button data-rate="2">2 sao</button>
+            <button data-rate="3">3 sao</button>
+            <button data-rate="4">4 sao</button>
+            <button data-rate="5">5 sao</button>
+          </div>
+        </div>
+        <div class="kv"><span>Trạng thái</span><b id="blindInfo">—</b></div>
+        <div class="kv"><span>Kết quả chấm mù</span><b id="blindResult">—</b></div>
+        <p class="note" style="margin:8px 0 0">Trung thực về phương pháp: (1) đây là chấm cảm nhận, không phải phép đo — điểm có thể lệch nếu các ứng viên chênh loudness — tính năng này <b>nay đã cân LUFS giữa các ứng viên theo BS.1770 giống A/B/X</b> (mặc định bật, tắt được ở ô chọn phía trên; mỗi ứng viên vẫn mang pre-amp tự động riêng trước khi cân, và phổ mô hình là cùng một phổ với A/B/X nên hai tính năng nhất quán nhau). (2) Trong lúc chấm, ứng viên đang nghe sẽ ghi đè lên dải band hiện tại của bạn — nút “Dừng / khôi phục cấu hình gốc” trả lại đúng cấu hình trước khi chấm. (3) Cấu hình thắng <b>chỉ áp dụng khi bạn bấm tay</b> — lựa chọn cảm nhận nên Chế độ Tự Động Toàn Diện không bao giờ tự áp dụng kết quả chấm mù. (4) Ứng viên lưu ở localStorage, chỉ trên máy này; nếu engine chưa chạy, bấm nguồn phát trước rồi mới nghe mẫu.</p>
+      </div>
+
+      <div class="cols" style="margin-top:14px">
+        <div class="panel">
+          <h2>3 · Natural Crossfeed &amp; Binaural Stage <span class="r" id="psXfState">ĐANG TẮT</span></h2>
+          <button class="btn small tog" id="psXfToggle">Bật crossfeed</button>
+          <div class="ctl">
+            <label>Preset sân khấu</label>
+            <div class="seg" id="psXfSeg">
+              <button data-xf="off">Off<small>mix 0%</small></button>
+              <button data-xf="studio" class="on">Studio<small>mix 35% · ITD 0.30 ms</small></button>
+              <button data-xf="concert">Concert<small>mix 65% · ITD 0.35 ms</small></button>
+            </div>
+          </div>
+          <div class="ctl">
+            <label>Mix kênh đối diện <output id="psMixOut">35%</output></label>
+            <input type="range" id="psMix" min="0" max="100" step="1" value="35" />
+          </div>
+          <div class="ctl">
+            <label>ITD — trễ tai xa <output id="psItdOut">0.30 ms</output></label>
+            <input type="range" id="psItd" min="0.25" max="0.35" step="0.01" value="0.30" />
+          </div>
+          <div class="kv"><span>Độ trễ ITD tại sample rate hiện tại</span><b id="psItdSamples">—</b></div>
+          <div class="kv"><span>ILD — lọc thông thấp kênh chéo</span><b>6.5 kHz (1 cực)</b></div>
+          <p class="note" style="margin:8px 0 0">Mô phỏng nghe loa bằng tai nghe: mỗi tai nhận thêm tín hiệu kênh đối diện đã trễ ITD và suy hao cao tần (ILD), nằm <b>sau EQ, trước limiter</b> trong worklet — giảm cảm giác “âm thanh trong đầu” và mỏi tai khi nghe lâu.</p>
+        </div>
+
+        <div class="panel">
+          <h2>4 · Dynamic EQ <span class="r" id="psDynState">chọn band để chỉnh</span></h2>
+          <div class="kv"><span>Band đang chọn trên dải PEQ</span><b class="cyan" id="psDynBand">—</b></div>
+          <button class="btn small tog" id="psDynToggle" style="margin-top:8px">Bật Dynamic EQ cho band này</button>
+          <div class="ctl">
+            <label>Threshold detector <output id="psThrOut">−20 dBFS</output></label>
+            <input type="range" id="psThr" min="-60" max="0" step="1" value="-20" />
+          </div>
+          <div class="ctl">
+            <label>Ratio <output id="psRatioOut">4.0 : 1</output></label>
+            <input type="range" id="psRatio" min="1" max="20" step="0.5" value="4" />
+          </div>
+          <div class="frow">
+            <div class="ctl" style="margin:0">
+              <label>Attack <output id="psAtkOut">10 ms</output></label>
+              <input type="range" id="psAtk" min="0" max="100" step="1" value="10" />
+            </div>
+            <div class="ctl" style="margin:0">
+              <label>Release <output id="psRelOut">120 ms</output></label>
+              <input type="range" id="psRel" min="20" max="500" step="5" value="120" />
+            </div>
+          </div>
+          <div class="ctl">
+            <label>Range — độ cắt/boost tối đa khi vượt threshold <output id="psRangeOut">−8.0 dB</output></label>
+            <input type="range" id="psRange" min="-12" max="12" step="0.5" value="-8" />
+          </div>
+          <div class="ctl">
+            <label>Sidechain — tần số độc lập (mặc định = tần số band) <output id="psScFreqOut">theo band</output></label>
+            <input type="range" id="psScFreq" min="0" max="1000" step="1" value="500" />
+          </div>
+          <div class="frow" style="gap:8px;flex-wrap:wrap;align-items:center">
+            <span class="flabel">Lọc sidechain:</span>
+            <span id="psScSeg"><button class="btn small tog" data-sc="bp">Band-pass</button><button class="btn small tog" data-sc="lp">Low-pass</button><button class="btn small tog" data-sc="hp">High-pass</button></span>
+            <span class="flabel">Detector:</span>
+            <span id="psDetSeg"><button class="btn small tog" data-det="peak">Peak</button><button class="btn small tog" data-det="rms">RMS</button></span>
+            <button class="btn small" id="psScFollow">Sidechain theo band</button>
+          </div>
+          <div class="ctl">
+            <label>Sidechain Q <output id="psScQOut">theo band</output></label>
+            <input type="range" id="psScQ" min="0.3" max="10" step="0.1" value="1" />
+          </div>
+          <div class="kv"><span>Sidechain hiệu dụng</span><b id="psDynScInfo">—</b></div>
+          <div class="kv"><span>Offset realtime từ worklet (band đang chọn)</span><b id="psDynLive">—</b></div>
+          <div class="kv"><span>Đường cong tĩnh: offset tại tone −30 dBFS</span><b id="psDyn30">—</b></div>
+          <div class="kv"><span>Đường cong tĩnh: offset tại tone −10 dBFS</span><b id="psDyn10">—</b></div>
+          <p class="note" style="margin:8px 0 0">Detector sidechain <b>độc lập với tần số band</b>: chọn Band-pass / Low-pass / High-pass + tần số + Q riêng (mặc định theo band để giữ hành vi cũ), detector Peak hoặc RMS theo block 128 mẫu; envelope follower attack/release chạy <b>trong AudioWorklet</b>, gain hiệu dụng = gain tĩnh + offset, offset realtime được worklet gửi về vẽ lên đồ thị chính (chấm hồng tại tần số band). Offset = −min(|range|, (mức − threshold)·(1 − 1/ratio)) khi range âm. Dynamic EQ hoạt động ở chế độ IIR Minimum Phase (chế độ FIR không chạy tầng này).</p>
+        </div>
+      </div>
+
+      <!-- ======= BINAURAL HRTF / SOFA (v2) ======= -->
+      <div class="panel" style="margin-top:14px">
+        <h2>5 · Binaural HRTF / SOFA (v2) — nguồn ảo bằng convolution HRIR <span class="r" id="hrtfState">ĐANG TẮT</span></h2>
+        <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center">
+          <button class="btn small tog" id="hrtfToggle">Bật HRTF</button>
+          <button class="btn small" id="hrtfClear">Xoá bộ HRTF</button>
+          <label class="flabel" style="margin:0" for="hrtfFile">Nạp file HRTF của bạn:</label>
+          <input type="file" id="hrtfFile" class="fileinput" accept=".json,.wav,.sofa" />
+        </div>
+        <div class="ctl">
+          <label>Hướng của file WAV khi nạp (JSON đã mang hướng trong file, không dùng 2 ô này) — Azimuth (°) / Elevation (°)</label>
+          <div style="display:flex;gap:8px;flex-wrap:wrap">
+            <input type="number" id="hrtfWavAz" value="0" min="-180" max="180" step="1" style="width:110px" />
+            <input type="number" id="hrtfWavEl" value="0" min="-90" max="90" step="1" style="width:110px" />
+          </div>
+        </div>
+        <div class="ctl">
+          <label>Hướng nguồn ảo muốn nghe — Azimuth <output id="hrtfAzOut">0°</output></label>
+          <input type="range" id="hrtfAz" min="-180" max="180" step="1" value="0" />
+        </div>
+        <div class="ctl">
+          <label>Hướng nguồn ảo muốn nghe — Elevation <output id="hrtfElOut">0°</output></label>
+          <input type="range" id="hrtfEl" min="-90" max="90" step="1" value="0" />
+        </div>
+        <div class="kv"><span>Bộ HRTF đang nạp</span><b id="hrtfInfo">—</b></div>
+        <div class="kv"><span>Hướng đang dùng</span><b id="hrtfSel">—</b></div>
+        <p class="note" style="margin:8px 0 0">Mô hình thật, không bịa dữ liệu: app chỉ dùng HRIR trong file <b>của bạn</b>. Tín hiệu sau EQ/limiter được downmix mono (L+R)/2 rồi chập với HRIR trái/phải của hướng gần nhất qua 2 ConvolverNode đặt <b>sau masterGain</b> (trước destination); worklet/solver/limiter không động tới nên các mốc DSP cũ giữ nguyên, và analyser (Spectrogram/RTA) vẫn đo tín hiệu trước binaural. HRIR giữ đúng biên độ trong file, chỉ giảm chung khi đỉnh cặp vượt 1.0; nếu rate file khác rate engine thì resample tuyến tính. <b>Định dạng:</b> JSON <code>{sampleRate?, directions:[{azimuth, elevation, left:[...], right:[...]}]}</code> (nạp thay toàn bộ bộ cũ); WAV stereo = một cặp HRIR cho một hướng (kênh trái = HRIR trái, phải = HRIR phải; mỗi file WAV thêm một hướng, khác rate sẽ resample về rate bộ đang có). <b>SOFA (.sofa, HDF5):</b> app giải mã thật file HDF5 superblock v0, dữ liệu contiguous không nén — đọc Data.IR, Data.SamplingRate, SourcePosition (hệ spherical: azimuth/elevation độ; bán kính bỏ qua vì app không có mô hình khoảng cách) và cộng Data.Delay (mẫu) vào đầu HRIR nếu có; file nén (gzip/filter), chunked, superblock v2/v3 hay cấu trúc lạ bị từ chối kèm lý do rõ ràng, không bao giờ báo "đã nạp" và không tạo HRIR giả. File ngoài phạm vi vẫn chuyển được sang JSON/WAV theo schema trên (gói Python <code>sofa</code> hoặc SOFA Toolbox) rồi nạp lại. <b>Tự động:</b> nạp bộ mới tự chọn hướng gần phía trước (0°, 0°) nhất; bật/tắt là lựa chọn không gian cá nhân nên luôn bấm tay (Chế độ Tự Động không tự bật HRTF). Bộ HRTF chỉ sống trong phiên này (không lưu localStorage/preset vì HRIR có thể nặng) — mở lại trang cần nạp lại file. Khi HRTF bật, nên tắt crossfeed tham số để tránh xử lý không gian 2 lần.</p>
+      </div>
+
+      <!-- ======= WASM + SIMD (v2) ======= -->
+      <div class="panel" style="margin-top:14px">
+        <h2>6 · WASM + SIMD cho đáp tuyến biquad (v2) <span class="r" id="wasmState">CHƯA KIỂM TRA</span></h2>
+        <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center">
+          <button class="btn small" id="wasmBench">Đo hiệu năng WASM vs JS</button>
+        </div>
+        <div class="kv"><span>Trạng thái / số đo</span><b id="wasmInfo">—</b></div>
+        <p class="note" style="margin:8px 0 0">Kernel WASM (397 byte, nhúng base64 trong chính file này, không file ngoài) tính độ lớn tuyến tính của một biquad trên lưới tần số bằng SIMD f32x4, đúng công thức của <code>biquadMagDb</code> (trừ bước đổi ra dB do JS làm giống hệt cho cả hai đường); cos/sin tính trước bằng JS và cache theo (N, fs). WASM chỉ dùng cho đáp tuyến hiển thị + quét pre-amp qua <code>gridTotalDb</code> — solver AutoEQ không dùng hàm này nên các mốc solver giữ nguyên. <b>Luôn có đường JS (f64) dự phòng:</b> WASM không khả dụng, lỗi khởi tạo, hoặc tự kiểm vượt ngưỡng 0,05 dB thì app tự dùng JS và đồ thị vẫn đúng. <b>Dung sai đã đo, không đoán:</b> lệch tối đa 0,047 dB trên fixture 20 band hỗn hợp (vùng skirt tần thấp nơi tử/mẫu biquad đều ~10⁻⁵ do triệt tiêu), 0,0025 dB trên fixture giống mẫu thật, 0,00009 dB với band đơn +6 dB; pre-amp từ cực đại lưới lệch tối đa 0,00031 dB. Nút "Đo hiệu năng" đo lại trên máy bạn (lưới 20 band, N=220).</p>
+      </div>
+
+      <!-- ======= PRESET SCHEMA V2 ======= -->
+      <div class="panel" style="margin-top:14px">
+        <h2>Preset — Schema v2 <span class="r" id="psPresetMsg">chưa chụp preset</span></h2>
+        <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center">
+          <button class="btn small" id="psCap">Chụp preset v2 từ trạng thái hiện tại</button>
+          <button class="btn small" id="psDl" disabled>Tải preset (.json)</button>
+          <label class="flabel" style="margin:0" for="psImp">Nhập preset:</label>
+          <input type="file" id="psImp" class="fileinput" accept=".json,.txt,application/json,text/plain" />
+        </div>
+        <p class="note" style="margin:10px 0 0">Schema v2 gồm: PEQ theo số band engine đang chọn (10 hoặc 20 band — mảng bands trong preset chứa đủ số band của chế độ khi chụp) + chế độ/pre-amp (Giai đoạn 1), target &amp; hiệu chỉnh AutoEQ (Giai đoạn 2), và khối <b>psycho</b> (loudness ISO 226, notch cá nhân ghi nhãn riêng, crossfeed, Dynamic EQ từng band). Preset v1 (định dạng cũ chỉ gồm <i>gains</i>) khi nhập sẽ được <b>migration tự động lên v2</b>: giữ nguyên gain, các mô-đun psycho mặc định tắt. Preset sống trong trang và qua file JSON bạn tải xuống — trang không tự lưu trữ lâu dài trên máy chủ. Ngoài ra, Chế độ Tự Động Toàn Diện tự lưu trạng thái vào localStorage của trình duyệt và khôi phục khi mở lại (chỉ ở máy này, không gửi lên máy chủ). Ngoài JSON preset v2/v1 và bundle, ô nhập nay nhận cả file Equalizer APO (.txt — Preamp + Filter PK/LSC/HSC, kể cả file do chính app xuất, preset AutoEq và Qudelix): band OFF và band hỏng bị bỏ qua, preamp trong file (nếu có) áp làm preamp thủ công, target/psycho hiện tại giữ nguyên.</p>
+        <details>
+          <summary>Xem JSON preset v2 đã chụp</summary>
+          <pre class="presetjson" id="psPresetJson">Chưa chụp — bấm “Chụp preset v2”.</pre>
+        </details>
+        <div style="border-top:1px dashed var(--line);margin-top:10px;padding-top:10px">
+          <button class="btn small" id="psStoreOptIn">Lưu trữ bền vững phía máy khách (Opt-In): ĐANG TẮT</button>
+          <span class="tag" id="psStoreOptInState">ĐANG TẮT</span>
+          <p class="note" style="margin:8px 0 0">Mặc định TẮT: preset và báo cáo QA chỉ sống trong trang/file tải xuống. Bật Opt-In để lưu thư viện preset v2 (tối đa 20) và lịch sử QA (tối đa 15 lần chạy) vào localStorage của chính trình duyệt này (đồng bộ best-effort sang IndexedDB riêng “webAutoEqVault.v1”, không gửi máy chủ). Tắt Opt-In là xoá sạch cả hai danh sách ngay lập tức.</p>
+          <div id="psStoreBox" style="display:none;margin-top:8px">
+            <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center">
+              <label class="flabel" style="margin:0" for="psStoreName">Tên preset:</label>
+              <input class="numin" id="psStoreName" type="text" value="" placeholder="VD: HD 600 Harman OE" maxlength="80" style="width:220px" />
+              <button class="btn small" id="psStoreSaveBtn">Lưu preset hiện tại vào thư viện máy khách</button>
+              <button class="btn small" id="psStoreDlAllBtn">Tải tất cả preset (JSON)</button>
+              <button class="btn small" id="psStoreClearBtn">Xoá hết thư viện đã lưu</button>
+            </div>
+            <ul id="psStoreList" style="margin:8px 0 0"></ul>
+          </div>
+        </div>
+      </div>
+
+      <!-- ======= BLIND A/B/X (Giai đoạn 4) ======= -->
+      <div class="panel" id="abxPanel">
+        <h2>Blind A/B/X — cân loudness LUFS (ITU-R BS.1770) <span class="r" id="abxState">đang nghe: EQ trực tiếp</span></h2>
+        <div style="display:flex;flex-wrap:wrap;gap:8px">
+          <button class="btn small" id="abxOff">Nghe: Bypass</button>
+          <button class="btn small" id="abxA">Nghe: Preset A</button>
+          <button class="btn small" id="abxB">Nghe: Preset B</button>
+          <button class="btn small" id="abxX">Chế độ X — giấu đáp án</button>
+        </div>
+        <div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:8px">
+          <button class="btn small" id="abxSaveA">Lưu EQ hiện tại → A</button>
+          <button class="btn small" id="abxSaveB">Lưu EQ hiện tại → B</button>
+          <button class="btn small" id="abxMatch">Đo &amp; cân loudness các slot</button>
+          <button class="btn small" id="abxSpec">Đo phổ từ tín hiệu đang phát (1 giây)</button>
+          <button class="btn small" id="abxSpecReset">Quay lại phổ pink (mô hình)</button>
+        </div>
+        <div class="kv" style="margin-top:6px"><span>Phổ dùng để tính LUFS</span><b id="abxSpecName">mô hình pink noise (mặc định)</b></div>
+        <div class="kv"><span>Bypass — LUFS tích hợp / trim</span><b id="abxLufsOff">—</b></div>
+        <div class="kv"><span>Preset A — LUFS tích hợp / trim</span><b id="abxLufsA">—</b></div>
+        <div class="kv"><span>Preset B — LUFS tích hợp / trim</span><b id="abxLufsB">—</b></div>
+        <div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:10px;align-items:center">
+          <span style="font-size:13px;color:var(--mut)">Đoán X đang nghe:</span>
+          <button class="btn small" id="abxGuessA" disabled>X là A</button>
+          <button class="btn small" id="abxGuessB" disabled>X là B</button>
+          <span class="note" id="abxScore" style="font-family:var(--mono)">Điểm X: 0 lượt thử · đúng 0 · 0%</span>
+        </div>
+        <p class="note" id="abxMsg" style="margin:10px 0 0">Quy trình: chỉnh EQ → “Lưu EQ hiện tại → A” → chỉnh khác đi → “Lưu → B” → bấm “Đo &amp; cân loudness” (trim tự áp khi chuyển slot để loại bỏ thiên kiến “to hơn = hay hơn”) → nghe qua lại A/B, rồi bật chế độ X: app chọn ngẫu nhiên A hoặc B và giấu đáp án, bạn đoán và app chấm điểm. Chuyển slot là tức thời — đổi toàn bộ hệ số + trim trong worklet với nội suy mượt chống click, không reload, không ngắt luồng âm thanh. LUFS tích hợp tính theo trọng số K (BS.1770) trên phổ đang dùng, gồm cả pre-amp tự động của từng slot; trim chỉ giảm (neo theo slot nhỏ nhất) để không bao giờ đẩy quá trần −1.0 dBTP. Nút “Đo phổ…” tự chuyển sang Bypass trong 1 giây đo để phổ đo là phổ nguồn thật (analyser nằm sau EQ nên đo lúc EQ bật sẽ đếm trùng EQ, lệch trim tới ~1,4 dB), rồi khôi phục đúng slot bạn đang nghe; đổi nguồn phát sau khi đã đo thì bấm “Quay lại phổ pink” hoặc đo lại phổ.</p>
+      </div>
+
+      <!-- ======= DATABASE & IMPORT (Giai đoạn 5) ======= -->
+      <div class="cols" style="margin-top:14px">
+        <div class="panel">
+          <h2>Kho tai nghe — tìm kiếm &amp; import <span class="r">Giai đoạn 5/6 · nguồn cho Bước 1 của AutoEQ</span></h2>
+          <label class="flabel" for="dbSearch">Tìm tai nghe trong kho dữ liệu đo thật (fuzzy — gõ sai chính tả vẫn ra)</label>
+          <input class="numin" id="dbSearch" type="text" placeholder="ví dụ: hd600, airpod, sundara, xm5…" autocomplete="off" />
+          <p class="note" id="dbCount" style="margin:6px 0 0"></p>
+          <div class="dbres" id="dbResults"></div>
+          <p class="note" style="margin:10px 0 0"><b>Tính trung thực dữ liệu:</b> các đường cong trong kho là <b>dữ liệu đo GỐC</b> lấy từ dự án mã nguồn mở <b>AutoEQ</b> (github.com/jaakkopasanen/AutoEq, thư mục results/) — đáp tuyến do chính các nguồn đo công bố (oratory1990, Innerfidelity, Rtings, Super Review, HypetheSonics, Kuulokenurkka, Headphone.com Legacy, Jaytiss), đã qua pipeline kiểm định và resample về lưới 1/12 octave khi đóng gói app (chi tiết ở panel <b>Kiểm định dữ liệu</b> bên dưới). Hãng, dạng tai nghe, rig và nguồn hiển thị ngay trên từng kết quả trước khi bạn chọn; chọn xong, tai nghe đó trở thành tai nghe đang chọn ở Bước 1 của panel AutoEQ. Đây là toàn bộ phần dữ liệu đo công khai app đã lấy được từ các nguồn đó — không phải mọi tai nghe từng sản xuất. Muốn số đo của đúng chiếc tai nghe của mình mà kho chưa có, hãy import file đo ở dưới — file nạp vào cũng trở thành một mục tai nghe trong danh sách Bước 1.</p>
+          <div style="height:12px"></div>
+          <label class="flabel" for="dbFile">Import file đo — tự nhận diện 3 định dạng: AutoEQ CSV · Squig.link CSV · REW TXT</label>
+          <input type="file" id="dbFile" class="fileinput" accept=".csv,.txt,text/csv,text/plain" style="width:100%" />
+          <div style="height:8px"></div>
+          <label class="flabel" for="dbRigSel">Rig của file (khi file không tự khai báo)</label>
+          <select class="aesel" id="dbRigSel">
+            <option value="auto">Tự nhận diện từ nội dung file</option>
+            <option value="711">IEC 60318-4 (711 coupler)</option>
+            <option value="5128">B&amp;K 5128</option>
+            <option value="other">Rig khác / chưa xác định</option>
+          </select>
+          <p class="note" id="dbInfo" style="margin:10px 0 0">Parser chuẩn hoá mọi định dạng về một kiểu Measurement {tai nghe, rig, nguồn, attribution, điểm đo}, chịu được khác biệt delimiter (phẩy / chấm phẩy / tab / khoảng trắng), header và lưới tần; dòng dữ liệu hỏng sẽ báo lỗi kèm số dòng — không âm thầm bỏ dữ liệu. Sau khi đọc, đường đo được resample về lưới log 1/24 octave chung của Giai đoạn 2.</p>
+          <div class="aeerr" id="dbErr"></div>
+          <div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:10px">
+            <span style="font-size:13px;color:var(--mut);align-self:center">Tải 3 file mẫu cùng một đường cong ở 3 định dạng để thử import &amp; đối chiếu:</span>
+            <button class="btn small" id="dbFxRew">REW .txt</button>
+            <button class="btn small" id="dbFxSquig">Squig.link .csv</button>
+            <button class="btn small" id="dbFxAutoeq">AutoEQ .csv</button>
+          </div>
+          <div style="margin-top:14px;border-top:1px solid var(--line);padding-top:10px">
+            <h2 style="margin:0 0 6px">Lưu trữ ngoại tuyến — IndexedDB + PWA <span class="r">Nhóm 5 v2</span></h2>
+            <p class="note" id="dbIdbStatus" style="margin:6px 0">Đang kiểm tra cache IndexedDB…</p>
+            <p class="note" id="dbIdbSwStatus" style="margin:6px 0"></p>
+            <div style="display:flex;flex-wrap:wrap;gap:8px">
+              <button class="btn small" id="dbIdbSaveBtn">Lưu kho vào IndexedDB</button>
+              <button class="btn small" id="dbIdbVerifyBtn">Kiểm tra cache IndexedDB</button>
+              <button class="btn small" id="dbIdbClearBtn">Xoá cache IndexedDB</button>
+              <button class="btn small" id="dbSwBtn">Tải sw.js (Service Worker)</button>
+              <button class="btn small" id="dbManifestBtn">Tải manifest.json (PWA)</button>
+            </div>
+            <p class="note" style="margin:10px 0 0">Kho tai nghe trong file này vẫn là nguồn chính và luôn hiển thị ngay khi mở trang — IndexedDB chỉ là <b>bản cache đã kiểm chứng</b> (đối chiếu số lượng + tên đầu/cuối với kho nhúng) để đối chiếu và khôi phục khi cần, không thay đường nạp kho hiện tại nên không làm chậm hay làm trống danh sách Bước 1. Cache được <b>tự lưu/kiểm tra khi mở app</b> (Chế độ Tự Động Toàn Diện không cần bấm gì thêm); tai nghe bạn import bằng file trong phiên này chưa được lưu vào cache này — đó là hạng mục riêng, xem backlog. <b>Giới hạn thật của Service Worker:</b> file HTML đơn mở qua file:// hoặc qua xem trước Drive không đăng ký được Service Worker (trình duyệt chỉ cho đăng ký SW trên http(s) với file sw.js đặt cạnh app) — vì vậy app chỉ <b>tự thử đăng ký khi mở qua http(s)</b> và luôn báo rõ kết quả; nút “Tải sw.js” / “Tải manifest.json” tạo đúng hai file thật để bạn đặt cạnh file app rồi mở qua https là dùng được offline. Manifest hiện chưa kèm icon (file đơn không có asset icon) nên trình duyệt có thể chưa đề xuất cài đặt cho tới khi bạn thêm icon 192/512 px — điều này được ghi rõ, không giấu.</p>
+          </div>
+          <div style="margin-top:14px;border-top:1px solid var(--line);padding-top:10px">
+            <h2 style="margin:0 0 6px">Mở rộng kho đo On-Demand (Chặng 2) <span class="r">Pack Loader + GitHub AutoEq Fetcher</span></h2>
+            <p class="note" style="margin:6px 0">App không nhúng sẵn đường cong đo mới (tránh bịa dữ liệu): dữ liệu thật chỉ vào kho qua tải GitHub hoặc file pack của bạn, mọi mục đều qua dbValidateEntry + chống trùng tên+nguồn, rồi lưu vào localStorage của trình duyệt này để nạp lại sau. Nguồn phụ trợ trong AutoEq: Hi End Portable · Fahryst · Filk · Harpo · DHRME · Auriculares Argentina · Crinacle (chỉ khi nguồn công bố file đáp tuyến thô kèm attribution).</p>
+            <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center">
+              <button class="btn small" id="dbLoadExtBtn">📦 Nạp gói mở rộng On-Demand (gói đã lưu)</button>
+              <label class="flabel" style="margin:0" for="dbPackFileInput">Nhập gói mở rộng (.json pack / nhiều file .csv, .txt cùng lúc):</label>
+              <input type="file" id="dbPackFileInput" class="fileinput" accept=".json,.csv,.txt,application/json,text/csv,text/plain" multiple />
+            </div>
+            <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-top:8px">
+              <label class="flabel" style="margin:0" for="dbFetchGhPath">Tải trực tiếp từ GitHub AutoEq (results/...):</label>
+              <input class="numin" id="dbFetchGhPath" type="text" placeholder="results/<nguồn>/<target>/<tên>.csv" style="flex:1;min-width:260px" />
+              <button class="btn small" id="dbFetchGhBtn">⬇ Tải từ GitHub AutoEq</button>
+            </div>
+            <p class="note" id="dbExtInfo" style="margin:10px 0 0">Chưa nạp gói mở rộng nào trong phiên này — bấm “Nạp gói mở rộng” để nạp lại gói đã lưu, hoặc nhập file pack / tải từ GitHub.</p>
+          </div>
+        </div>
+
+        <div class="panel">
+          <h2>Hardware Constraint Solver <span class="r">registry thiết bị</span></h2>
+          <label class="flabel" for="hwProfile">Thiết bị đích — profile ràng buộc phần cứng</label>
+          <select class="aesel" id="hwProfile"></select>
+          <div id="hwSpec" style="margin-top:6px"></div>
+          <button class="btn primary" id="btnHwSolve" disabled style="width:100%;justify-content:center;margin-top:10px">Chạy lại bộ tối ưu với ràng buộc của thiết bị này</button>
+          <p class="note" style="margin:10px 0 0">Khi thiết bị giới hạn hơn engine, app <b>chạy lại toàn bộ bộ tối ưu Giai đoạn 2</b> (Regularized Least Squares + Nelder–Mead, cùng safety chống boost null và giới hạn treble) với ràng buộc của profile — <b>không cắt cụt band</b> của preset được tạo cho engine. Chênh lệch sai số (delta RMS) so với bản không giới hạn được hiển thị rõ bên dưới. Profile là dữ liệu trong registry <span style="font-family:var(--mono)">HW_PROFILES</span> — thêm thiết bị mới chỉ cần thêm một mục khai báo.</p>
+          <div id="hwOut"></div>
+          <ul class="warnlist" id="hwWarn"></ul>
+          <button class="btn small" id="btnHwPreview" disabled style="margin-top:10px">Áp các band đầu của kết quả vào engine để nghe thử</button>
+          <p class="note" style="margin:10px 0 0"><b>Lưu ý Qudelix-5K (20 band):</b> profile 20 band được xử lý ở tầng preset / xuất file — file xuất chứa đủ 20 band. Nghe thử trong app: ở chế độ engine <b>10 band (mặc định)</b> chỉ áp được 10 band đầu theo thứ tự solver nên đáp tuyến nghe thử là gần đúng; chuyển engine sang <b>chế độ 20 band</b> (bộ chọn số band ở khu vực EQ) thì nghe thử áp đủ cả 20 band, khớp 1:1 với file xuất.</p>
+        </div>
+      </div>
+
+      <!-- ======= KIỂM ĐỊNH DỮ LIỆU (Giai đoạn 5 mở rộng) ======= -->
+      <div class="panel" style="margin-top:14px">
+        <h2>Kiểm định dữ liệu — báo cáo xác thực kho tai nghe &amp; target <span class="r">số đếm thật từ dữ liệu đã nhúng</span></h2>
+        <div class="bigstat">
+          <div><b id="dvCand">—</b><span>Mẫu ứng viên đã tải &amp; kiểm định</span></div>
+          <div><b id="dvPass">—</b><span>Đạt kiểm định &amp; đã nhúng</span></div>
+          <div><b id="dvRej">—</b><span>Bị loại kèm lý do</span></div>
+          <div><b id="dvTargets">—</b><span>Target trong thư viện</span></div>
+        </div>
+        <div class="kv"><span>Kiểm định lại ngay trong app khi nạp trang (giải mã dữ liệu đã nhúng, cùng tiêu chí)</span><b id="dvRuntime">—</b></div>
+        <table style="margin-top:10px" id="dvPerSource"></table>
+        <p class="note" id="dvRejects" style="margin:10px 0 0"></p>
+        <p class="note" id="dvNote" style="margin:8px 0 0"></p>
+      </div>
+
+      <!-- ======= UNIVERSAL EXPORT (Giai đoạn 5) ======= -->
+      <div class="panel" style="margin-top:14px">
+        <h2>Universal Export — xuất preset ra mọi hệ sinh thái <span class="r">Giai đoạn 5/6</span></h2>
+        <div class="frow">
+          <div>
+            <label class="flabel" for="expSrc">Nguồn band để xuất</label>
+            <select class="aesel" id="expSrc">
+              <option value="engine">EQ hiện tại của engine (10/20 band theo chế độ + pre-amp đang áp)</option>
+              <option value="hw">Kết quả Hardware Solver gần nhất (theo profile thiết bị)</option>
+            </select>
+          </div>
+          <div>
+            <label class="flabel">Metadata nhúng trong mọi file xuất</label>
+            <div class="kv" style="border-bottom:0;padding-top:2px"><span id="expMeta">—</span></div>
+          </div>
+        </div>
+        <h2 style="margin-top:14px">Preset EQ dạng text / JSON</h2>
+        <div class="expgrid">
+          <button class="btn" id="expApo">Equalizer APO / Peace (.txt)</button>
+          <button class="btn" id="expSS">SoundSource (.json)</button>
+          <button class="btn" id="expWav">Wavelet (.json)</button>
+          <button class="btn" id="expPA">Poweramp Equalizer (.json)</button>
+          <button class="btn" id="expJD">JamesDSP — DDC (.vdc)</button>
+          <button class="btn" id="expCamilla">CamillaDSP (.yml)</button>
+          <button class="btn" id="expQudelix">Qudelix-5K (.txt, tối đa 10 band)</button>
+          <button class="btn" id="expRoon">Roon — Convolution IR (.wav)</button>
+          <button class="btn" id="expEasy">EasyEffects (.json)</button>
+          <button class="btn" id="expProq">FabFilter Pro-Q — bảng band nhập tay (.txt, KHÔNG phải .ffp)</button>
+        </div>
+        <h2 style="margin-top:14px">Graphic EQ — tần số cố định (Equalizer APO)</h2>
+        <div class="frow">
+          <div>
+            <label class="flabel" for="geqSel">Bộ band cố định</label>
+            <select class="aesel" id="geqSel">
+              <option value="10">10 band — 31/62/125/250/500/1k/2k/4k/8k/16k Hz</option>
+              <option value="31" selected>31 band ISO 1/3 octave — 20 Hz–20 kHz</option>
+            </select>
+          </div>
+        </div>
+        <div class="expgrid">
+          <button class="btn" id="geqBuild">Tạo Graphic EQ từ nguồn trên</button>
+          <button class="btn" id="geqDownload">Tải file GraphicEQ (.txt)</button>
+        </div>
+        <p class="note" id="geqInfo" style="margin:8px 0 0">Chưa tạo Graphic EQ — chọn bộ band rồi bấm “Tạo Graphic EQ từ nguồn trên”. Nguồn band lấy theo ô “Nguồn band để xuất” ở đầu panel này.</p>
+        <textarea id="geqText" readonly rows="8" style="width:100%;margin-top:8px;font-family:var(--mono);font-size:12px"></textarea>
+        <p class="note" style="margin:8px 0 0">Cách khớp: đáp tuyến parametric nguồn được tính đúng bằng rbjCoeffs/biquadMagDb trên lưới solver 1/24 octave (20 Hz–20 kHz); các gain Graphic EQ là nghiệm bình phương tối thiểu của đáp tuyến đó theo mô hình nội suy log-tuyến tính giữa các điểm cố định (ngoài dải giữ gain điểm biên). Sai số RMS/max hiển thị đo theo đúng mô hình nội suy này; Equalizer APO tự tổng hợp đáp tuyến từ các điểm GraphicEQ: bằng convolution riêng của nó nên kết quả trên thiết bị có thể lệch thêm một chút so với số hiển thị.</p>
+        <p class="note" style="margin:8px 0 0">Biến thể định dạng: APO dùng dòng <span style="font-family:var(--mono)">Preamp:</span> + <span style="font-family:var(--mono)">Filter N: ON PK/LSC/HSC Fc … Gain … Q …</span> (metadata ở dòng comment <span style="font-family:var(--mono)">#</span> đầu file). SoundSource dùng JSON preset EQ {preampDb, filters[]}. Wavelet dùng JSON export của Wavelet {title, preamp, bands[] với type PEAKING/LOW_SHELF/HIGH_SHELF}. Poweramp Equalizer dùng JSON preset {name, preamp, bands[] với freq/gain/q}. JamesDSP không có preset EQ dạng text chuẩn — app xuất biến thể <b>DDC (.vdc)</b> mà JamesDSP/ViPER nạp được: bảng tần số → độ hiệu chỉnh dB cho 44.1 và 48 kHz. Biến thể mới (Nhóm 5 v2): <b>CamillaDSP (.yml)</b> xuất đúng cấu trúc filters/pipeline của CamillaDSP — mỗi band là Biquad Peaking/Lowshelf/Highshelf (freq/gain/q) cộng một Gain filter pre-amp, pipeline áp cho cả hai kênh; file này chỉ chứa filters + pipeline, bạn cần ghép vào file cấu hình CamillaDSP của mình (mục devices là của riêng hệ thống bạn). <b>Qudelix-5K (.txt)</b> dùng đúng dòng Filter/Preamp của Equalizer APO — là dạng giá trị mà app Qudelix nhận nhập tay theo hướng dẫn sử dụng (app Qudelix không có định dạng file preset nhập trực tiếp) — và bị cắt ở 10 band vì 5K là EQ 10 band: ở engine 20 band, file chỉ chứa 10 band đầu theo thứ tự tần số và KHÔNG tương đương đáp tuyến đầy đủ, muốn khớp 1:1 hãy chuyển engine sang 10 band trước khi xuất. <b>Roon (.wav)</b> không dùng preset text vì Roon không có định dạng file preset EQ nhập được — đường xuất chính thức cho Roon là Convolution: nút này xuất IR Minimum Phase (theo sample rate/taps bạn đang chọn ở mục IR) để nạp làm Convolution filter trong Roon DSP.</p>
+        <h2 style="margin-top:14px">Chia sẻ trạng thái — link + mã QR (v2)</h2>
+        <div class="frow">
+          <div>
+            <label class="flabel">Link chia sẻ trạng thái EQ hiện tại</label>
+            <input class="aesel" id="shareLink" readonly style="width:100%" value="Chưa tạo link — bấm “Tạo link + mã QR”.">
+          </div>
+        </div>
+        <div class="expgrid">
+          <button class="btn" id="shareBuild">Tạo link + mã QR</button>
+          <button class="btn" id="shareCopy">Sao chép link</button>
+        </div>
+        <div style="margin-top:10px"><canvas id="shareQr" width="100" height="100" style="background:#fff"></canvas></div>
+        <p class="note" id="shareMsg" style="margin:8px 0 0">Link mã hoá trạng thái EQ chính (tai nghe, target, tilt/bass/ear, bảo toàn đặc tính, số band solver, band 10/20, mode, pre-amp, limiter, âm lượng, loudness) vào tham số ?waeq= của chính file này; mở link là khôi phục đúng trạng thái đó, và bản lưu localStorage cũ không ghi đè lên nó khi mở trang. Link KHÔNG mang theo notch/crossfeed/Dynamic EQ/điểm chấm mù (những thứ này vẫn lấy theo máy mở link). Mã QR tự chứa trong file (byte mode, EC level L, version 1–20, không cần mạng) và vẽ đúng link trên. Sau khi Chế độ Tự Động chạy solver mới, nếu bạn đã tạo link trước đó thì link + mã QR tự làm mới theo trạng thái mới.</p>
+        <h2 style="margin-top:14px">Convolution IR (.wav, 32-bit float, stereo dual-mono)</h2>
+        <div class="frow">
+          <div>
+            <label class="flabel" for="irFs">Sample rate của IR</label>
+            <select class="aesel" id="irFs">
+              <option value="44100">44.1 kHz</option>
+              <option value="48000" selected>48 kHz</option>
+              <option value="96000">96 kHz</option>
+              <option value="192000">192 kHz</option>
+            </select>
+          </div>
+          <div>
+            <label class="flabel" for="irTaps">Độ dài IR</label>
+            <select class="aesel" id="irTaps">
+              <option value="16384">16k taps (16384)</option>
+              <option value="32768" selected>32k taps (32768)</option>
+              <option value="65536">65k taps (65536)</option>
+            </select>
+          </div>
+        </div>
+        <div class="frow">
+          <div>
+            <label class="flabel" for="irMix">Tỉ lệ pha thừa &alpha; cho Mixed Phase <output id="irMixOut">50% (cân bằng)</output></label>
+            <input type="range" id="irMix" min="0" max="100" step="1" value="50" style="width:100%">
+          </div>
+        </div>
+        <div class="expgrid">
+          <button class="btn" id="expIrMin">Tải IR — Minimum Phase (.wav)</button>
+          <button class="btn" id="expIrLin">Tải IR — Linear Phase (.wav)</button>
+          <button class="btn" id="expIrMix">Tải IR — Mixed Phase (.wav)</button>
+          <button class="btn" id="expIr16Min">Tải IR — Minimum Phase 16-bit + TPDF (.wav)</button>
+          <button class="btn" id="expIr16Lin">Tải IR — Linear Phase 16-bit + TPDF (.wav)</button>
+          <button class="btn" id="expIr16Mix">Tải IR — Mixed Phase 16-bit + TPDF (.wav)</button>
+        </div>
+        <p class="note" style="margin:8px 0 0">Hai biến thể pha là <b>hai file riêng, ghi nhãn rõ trong tên file và trong chunk INFO của WAV</b>: Minimum Phase tái cấu trúc bằng cepstrum (độ trễ tối thiểu, giống EQ IIR tương đương); Linear Phase là IR đối xứng cửa sổ Hann (độ trễ = nửa độ dài IR); Mixed Phase (Nhóm 2 v2) = pha tối thiểu + &alpha; × pha thừa, với pha thừa = pha tuyến tính (trễ (N−1)/2) trừ pha tối thiểu, &alpha; lấy từ thanh trượt trên (mặc định 50% — tự động cân bằng giữa trễ thấp và pre-ringing thấp; &alpha;=0% ≡ Minimum Phase, &alpha;=100% ≈ Linear Phase). Metadata (tai nghe, rig, target, pre-amp, ngày, phiên bản app, pha, sample rate, taps) nằm trong chunk LIST/INFO của file WAV.</p>
+        <p class="note" style="margin:8px 0 0">Biến thể <b>16-bit PCM + TPDF</b> (Nhóm 1 v2): trước khi làm tròn mỗi mẫu float về số nguyên 16-bit, cộng nhiễu TPDF — tổng của hai nhiễu đều độc lập, phân phối tam giác trong [−1, +1] LSB, phương sai LSB²/6 — rồi mới làm tròn và kẹp về [−32768, 32767]. Nhờ đó tín hiệu nhỏ hơn 1 LSB không bị “dính” về một mã cố định mà được mã hoá không thiên lệch theo trung bình, và méo lượng tử biến thành nhiễu trắng thay vì hài méo tương quan tín hiệu. Dither <b>chỉ</b> áp tại bước lượng tử hoá này: bản IR float 32-bit giữ nguyên không dither, và đường phát realtime float trong worklet cũng không thêm dither (thêm nhiễu vào float mà không có bước lượng tử sau đó chỉ làm xấu SNR).</p>
+        <p class="note" id="expMsg" style="margin:10px 0 0">Chưa xuất file nào trong phiên này.</p>
+        <div class="locknote" id="qaGateNote"></div>
+      </div>
+
+      <!-- ======= ATTRIBUTION (Giai đoạn 5) ======= -->
+      <div class="panel" style="margin-top:14px">
+        <h2>Attribution — nguồn dữ liệu &amp; giấy phép <span class="r">minh bạch nguồn gốc</span></h2>
+        <ul class="attrlist">
+          <li><b>AutoEQ</b> (Jaakko Pasanen) — <span>dự án mã nguồn mở (MIT License). Kho tai nghe của app nhúng dữ liệu đáp tuyến GỐC từ thư mục results/ và file target từ thư mục targets/ của repo này (lấy ngày 2026-10-25), sau pipeline kiểm định và resample về lưới 1/12 octave — xem panel Kiểm định dữ liệu. Attribution của từng đường cong thuộc về nguồn đo tương ứng.</span></li>
+          <li><b>Oratory1990</b> — <span>nguồn đo trên rig GRAS 711 (RA0045); là nguồn lớn nhất trong kho (toàn bộ phần oratory1990 của AutoEq đã được nhúng). Dữ liệu gốc thuộc về tác giả và được phân phối qua repo AutoEq.</span></li>
+          <li><b>Innerfidelity · Rtings · Super Review · HypetheSonics · Kuulokenurkka · Headphone.com Legacy · Jaytiss</b> — <span> các nguồn đo có dữ liệu trong thư mục results/ của AutoEq và đã được nhúng một phần theo quota dung lượng (dàn trải khắp danh mục từng nguồn); rig của từng đường cong ghi ngay trên kết quả tìm kiếm. Super Review là dữ liệu cộng đồng Squig.link; attribution thuộc về người đo.</span></li>
+          <li><b>Crinacle / In-Ear Fidelity</b> — <span>thư mục results/crinacle trong repo AutoEq không kèm file đáp tuyến thô (chỉ có preset EQ và IR convolution), nên app KHÔNG nhúng dữ liệu đo của Crinacle. Tên "Innerfidelity" trong kho là kho lưu trữ đo cũ của trang InnerFidelity (Tyll Hertsens), không liên quan tới cơ sở dữ liệu hiện tại của Crinacle.</span></li>
+          <li><b>Target công bố</b> — <span>Diffuse Field &amp; Harman Over-Ear 2013 &amp; RTINGS Original lấy từ file gốc trong thư mục targets/ của AutoEq (ghi tên file ở ghi chú từng target). Free Field và SoundGuys là xấp xỉ số hoá từ đồ thị công bố, ghi nhãn "xấp xỉ" ngay cạnh tên target — không phải dữ liệu gốc.</span></li>
+          <li><b>Equalizer APO</b> (jthedering) — <span>phần mềm EQ hệ thống Windows mã nguồn mở (GPL); định dạng file cấu hình Filter/Preamp là định dạng mở được cộng đồng dùng rộng rãi.</span></li>
+          <li><b>Wavelet</b> (Pittvandewitt) · <b>Poweramp Equalizer</b> (Max MP) · <b>JamesDSP</b> (James Fung, GPLv3) · <b>SoundSource</b> (Rogue Amoeba) — <span>các ứng dụng đích của định dạng xuất; tên sản phẩm là nhãn hiệu của chủ sở hữu tương ứng, app này không liên kết hay được bảo trợ bởi họ. Biến thể định dạng được ghi rõ ở mục Universal Export.</span></li>
+          <li><b>ISO 226</b> — <span>đường đẳng âm dùng ở Giai đoạn 3 tính bằng công thức chuẩn tại 29 tần số 1/3-octave, ghi nguồn và phương pháp kiểm chứng ngay trong panel Psychoacoustics (đối chiếu Annex B ISO 226:2023); tiêu chuẩn đầy đủ thuộc ISO.</span></li>
+          <li><b>Robert Bristow-Johnson — Audio EQ Cookbook</b> — <span>công thức hệ số biquad RBJ dùng trong engine (tài liệu kỹ thuật công khai).</span></li>
+        </ul>
+      </div>
+
+      <!-- ======= KIỂM CHỨNG PROMPT 5 ======= -->
+      <div class="panel" style="margin-top:14px">
+        <h2>Kiểm chứng nghiệm thu Prompt 5 — Database &amp; Universal Export</h2>
+        <table>
+          <tr><th>Hạng mục</th><th>Kết quả đo</th><th></th></tr>
+          <tr><td>3 file mẫu thuộc 3 định dạng (REW TXT · Squig.link CSV · AutoEQ CSV) của cùng một đường cong → sau khi parse &amp; resample về lưới chung, khớp nhau trong ±0.2 dB</td><td id="p5V1">—</td><td id="p5V1Ok">—</td></tr>
+          <tr><td>Xuất một preset cố định → nội dung ổn định dạng golden: hash giống hệt nhau giữa 2 lần xuất sau khi loại trường ngày</td><td id="p5V2">—</td><td id="p5V2Ok">—</td></tr>
+          <tr><td>Chạy solver cho profile bị giới hạn hơn (Moondrop DSP: chỉ peaking, tối đa 8 band) → preset qua validator của profile, delta RMS hiển thị</td><td id="p5V3">—</td><td id="p5V3Ok">—</td></tr>
+          <tr><td>IR .wav (48 kHz, 32768 taps, cả Minimum-Phase, Linear-Phase và Mixed-Phase α=50%) chập với sweep trong harness → tái tạo đáp tuyến mục tiêu trong ±0.5 dB ở 20 Hz–16 kHz</td><td id="p5V4">—</td><td id="p5V4Ok">—</td></tr>
+          <tr><td>IndexedDB + PWA (Nhóm 5 v2): kho tai nghe chia chunk → khôi phục đúng tuyệt đối (tên, thứ tự, knots), verify bắt được cache lệch, manifest JSON hợp lệ, sw.js chứa install/fetch/cache web-autoeq-v1</td><td id="p5V5">—</td><td id="p5V5Ok">—</td></tr>
+          <tr><td>Xuất Roon / CamillaDSP / Qudelix-5K (Nhóm 5 v2): CamillaDSP YAML đúng cấu trúc filters/pipeline (Biquad + Gain pre-amp), Qudelix cắt đúng 10 band kèm cảnh báo khi nguồn &gt; 10 band, Roon là IR Convolution Minimum Phase thật (WAV 32-bit float stereo, đúng sample rate/taps đang chọn)</td><td id="p5V6">—</td><td id="p5V6Ok">—</td></tr>
+          <tr><td>Xuất EasyEffects + Pro-Q + chia sẻ URL + mã QR (v2): EasyEffects JSON đúng cấu trúc output/equalizer#0 (left/right bandN, input-gain = pre-amp, num-bands, plugins_order); Pro-Q là bảng band nhập tay kèm cảnh báo rõ KHÔNG phải file .ffp gốc (định dạng .ffp nhị phân độc quyền, không có đặc tả text công khai); URL chia sẻ mã hoá trạng thái EQ chính và khôi phục giống hệt (kể cả 20 band), localStorage cũ không ghi đè; mã QR tự chứa vẽ từ link đó</td><td id="p5V7">—</td><td id="p5V7Ok">—</td></tr>
+          <tr><td>Mở rộng kho đo On-Demand (Chặng 2): dbEncodeV ↔ dbDecodeV round-trip, Pack Loader + GitHub Fetcher, chống trùng/hỏng, kho giữ nguyên sau self-check (dùng id p5V8 vì p5V6 đã là hàng CamillaDSP/Qudelix)</td><td id="p5V8">—</td><td id="p5V8Ok">—</td></tr>
+        </table>
+        <button class="btn primary" id="btnP5Verify" style="margin-top:12px;width:100%;justify-content:center">Chạy kiểm chứng Prompt 5</button>
+        <p class="note" style="margin-top:10px">Kiểm chứng dùng đúng parser, solver, validator và bộ sinh IR đang chạy trong app: 3 file mẫu được sinh từ cùng một đường cong tham chiếu trơn nhưng khác lưới tần, khác delimiter/header và khác độ làm tròn theo đúng đặc trưng từng định dạng; IR được kiểm bằng chập thật với sweep hàm mũ (ESS) rồi giải chập bằng chia phổ FFT, so với đáp tuyến giải tích của chính các band đó.</p>
+      </div>
+
+      <!-- ======= KIỂM CHỨNG PROMPT 3 ======= -->
+      <div class="panel" style="margin-top:14px">
+        <h2>Kiểm chứng nghiệm thu Prompt 3</h2>
+        <table>
+          <tr><th>Hạng mục</th><th>Kết quả đo</th><th></th></tr>
+          <tr><td>Bù loudness: nghe thấp hơn tham chiếu 20 phon (60 vs 80) — đáp tuyến shelf tại 50 Hz khớp hiệu contour ISO 226:2023 trong ±1 dB</td><td id="psV1">—</td><td id="psV1Ok">—</td></tr>
+          <tr><td>Đánh dấu 7.2 kHz → notch cá nhân tại 7.2 kHz ±1%, thấy trên đồ thị đáp tuyến tổng</td><td id="psV2">—</td><td id="psV2Ok">—</td></tr>
+          <tr><td>Crossfeed 100%: tương quan liên kênh (zero-lag) giảm rõ trên tín hiệu mono test qua loa ảo +30°</td><td id="psV3">—</td><td id="psV3Ok">—</td></tr>
+          <tr><td>Dynamic EQ (band 6 kHz, threshold −20 dBFS, ratio 4, range −8 dB): tone −30 dBFS gần như không tác động, tone −10 dBFS cắt rõ</td><td id="psV4">—</td><td id="psV4Ok">—</td></tr>
+<tr><td>Dynamic EQ sidechain độc lập + RMS: lọc sidechain LP/HP/BP, tần số sidechain khác tần số band, detector RMS theo block</td><td id="psV5">—</td><td id="psV5Ok">—</td></tr>
+<tr><td>Suy luận ống tai từ nhạc thực tế (Nhóm 2 v2): ánh xạ quét notch dò logarit 5.5–9.5 kHz + đối chiếu hai đánh dấu (khớp trong ±2 bán âm → đề xuất trung bình hình học, lệch hơn → không áp dụng)</td><td id="psV6">—</td><td id="psV6Ok">—</td></tr>
+<tr><td>Chấm điểm mù đa cấu hình (Nhóm 2 v2): xáo trộn ẩn danh tối đa 4 ứng viên, chấm 1–5 sao từng mẫu, xếp hạng theo điểm, thắng chỉ áp dụng khi bấm tay</td><td id="psV7">—</td><td id="psV7Ok">—</td></tr>
+<tr><td>Nạp HRTF/SOFA + binaural (v2): JSON/WAV stereo thật, chọn hướng gần nhất, chập HRIR trái/phải qua ConvolverNode sau masterGain; SOFA HDF5 giải mã thật (superblock v0, contiguous, không nén; biến thể khác bị từ chối kèm lý do, không tạo HRIR giả)</td><td id="psV8">—</td><td id="psV8Ok">—</td></tr>
+        </table>
+        <button class="btn primary" id="btnPsVerify" style="margin-top:12px;width:100%;justify-content:center">Chạy kiểm chứng Prompt 3</button>
+        <p class="note" style="margin-top:10px">Kiểm chứng dùng đúng các hàm đang chạy trong app: bảng ISO nội suy song tuyến tính, hệ số shelf/notch RBJ của engine, mô phỏng crossfeed ITD/ILD trên nhiễu mono xác định (hạt giống cố định), và đường cong Dynamic EQ tĩnh mà worklet áp dụng. Riêng mục 2 sẽ đặt thật notch cá nhân về 7.2 kHz / −5 dB / Q 4 và bật lên để bạn thấy ngay trên đồ thị.</p>
+      </div>
+
+      <!-- ======= KIỂM CHỨNG PROMPT 4 ======= -->
+      <div class="panel" style="margin-top:14px">
+        <h2>Kiểm chứng nghiệm thu Prompt 4 — Studio UI &amp; A/B/X</h2>
+        <table>
+          <tr><th>Hạng mục</th><th>Kết quả đo</th><th></th></tr>
+          <tr><td>FPS hiện tại — đồng hồ đo trong app (bộ đếm requestAnimationFrame)</td><td id="p4FpsLive">—</td><td></td></tr>
+          <tr><td>Kéo node → đáp tuyến + hệ số engine cập nhật trong ≤ 16 ms</td><td id="p4V1">—</td><td id="p4V1Ok">—</td></tr>
+          <tr><td>FPS ≥ 55 duy trì khi phát + hiển thị phổ FFT (đo 1.5 giây, vẽ lại đồ thị mỗi khung)</td><td id="p4V2">—</td><td id="p4V2Ok">—</td></tr>
+          <tr><td>Chuyển slot Bypass/A/B tức thời, không click (không reload, không ngắt AudioContext)</td><td id="p4V3">—</td><td id="p4V3Ok">—</td></tr>
+          <tr><td>Chênh loudness giữa các slot sau khi cân ≤ 0.3 LU (BS.1770, K-weighting)</td><td id="p4V4">—</td><td id="p4V4Ok">—</td></tr>
+        </table>
+        <button class="btn primary" id="btnP4Verify" style="margin-top:12px;width:100%;justify-content:center">Chạy kiểm chứng Prompt 4</button>
+        <p class="note" style="margin-top:10px"><b>Công nghệ đồ thị: Canvas 2D</b> (không dùng WebGL) — mỗi khung chỉ vẽ ~880 điểm × tối đa 6 lớp đường cong giải tích cộng phổ FFT, tổng dưới ~60 nghìn phép tính số học: thừa ngân sách 16.7 ms/khung của 60 fps trên CPU phổ thông, trong khi WebGL thêm rủi ro tương thích và độ phức tạp không cần thiết cho đồ thị 2D này. Lưới 880 đoạn (2026-11-07, lab Node trên hàm thật): đỉnh hẹp hiển thị thiếu tối đa 0,73 dB thay vì 6,09 dB ở lưới 220 cũ, vẽ nóng 6 lớp 0,43 ms/khung. <b>Phương pháp đo:</b> độ trễ kéo node = thời gian từ sự kiện pointermove tới khi hàm cập nhật (tính pre-amp + vẽ lại + đẩy hệ số xuống worklet) hoàn tất, đo bằng performance.now() ngay trong app; FPS = bộ đếm khung hình rAF của chính app khi lớp FFT bật và đồ thị được vẽ lại mỗi khung; chuyển slot không click nhờ cơ chế worklet: hệ số biquad nội suy tuyến tính theo block 128 mẫu (hệ số 0.35/block) và pre-amp/trim ramp 0.30/block (~8 ms) — khẳng định bằng cơ chế này kèm thời gian áp slot đo được; loudness sau cân = LUFS tích hợp của từng slot cộng trim của chính nó, tính trên cùng một phổ. <b>Điều kiện đo FPS (cổng tiền điều kiện, kiểm tra TRƯỚC khi đo):</b> phép đo chỉ chạy khi đủ cả ba — (1) engine đang chạy và đang phát thật (AudioContext đã khởi tạo, trạng thái “running”, nguồn đang phát; engine chưa chạy thì không có tín hiệu phát và lớp FFT không có phổ thật), (2) tab đang hiển thị và được focus (tab ẩn bị trình duyệt dừng hẳn rAF, tab không focus/headless bị bóp khung), (3) nhịp rAF trần thăm dò 600 ms (không vẽ gì) đạt ≥ 55 fps — nếu rAF trần đã dưới ngưỡng thì môi trường đang bóp khung, không phải lỗi vẽ của app. Thiếu bất kỳ điều kiện nào, hàng FPS ghi “CHƯA ĐỦ ĐIỀU KIỆN ĐO” kèm lý do cụ thể thay vì kết luận PASS/FAIL, và trạng thái đó không khóa xuất file. Đủ điều kiện mới đo 1.5 giây như mô tả trên và phán quyết theo đúng ngưỡng 55 fps.</p>
+      </div>
+
+      <!-- ======= KIỂM CHỨNG PROMPT 2 ======= -->
+      <div class="panel" style="margin-top:14px">
+        <h2>Kiểm chứng nghiệm thu Prompt 2</h2>
+        <table>
+          <tr><th>Hạng mục</th><th>Kết quả đo</th><th></th></tr>
+          <tr><td>Mẫu A → Harman OE 2018, 10 band: RMS error giảm ≥ 60% và 0 vi phạm safety</td><td id="aeV1">—</td><td id="aeV1Ok">—</td></tr>
+          <tr><td>Mẫu C (null hẹp 15 dB tại 8 kHz): không sinh band boost nhắm vào null, có warning</td><td id="aeV2">—</td><td id="aeV2Ok">—</td></tr>
+          <tr><td>Thời gian tối ưu 10 band (mục tiêu &lt; 500 ms)</td><td id="aeV3">—</td><td id="aeV3Ok">—</td></tr>
+          <tr><td>Bảo toàn đặc tính gốc (Nhóm 2 v2): bật chế độ này trên Mẫu A, đáp tuyến sau EQ giữ tilt (dốc 500 Hz–8 kHz) trong ±0,30 dB/oct và giữ bass (trung bình 50–150 Hz) trong ±0,60 dB so với đáp tuyến gốc, 0 vi phạm safety, và khớp tilt/bass của correction phải khác 0 đáng kể (không phải hàng kiểm tra tầm thường)</td><td id="aeV4">—</td><td id="aeV4Ok">—</td></tr>
+          <tr><td>Solver 20 band đầy đủ (v2): Mẫu A với 20 band — đủ 20 band, RMS sau giải không tệ hơn mốc 10 band (0,53 dB), ≥15 band có |gain| ≥ 0,5 dB, 0 vi phạm safety; thời gian giải được đo thật và ghi rõ</td><td id="aeV5">—</td><td id="aeV5Ok">—</td></tr>
+          <tr><td>Solver Web Worker (Chặng 2): đối chiếu worker vs main thread trên Mẫu A — 10 và 20 band, maxDiff === 0 tuyệt đối</td><td id="aeV6">—</td><td id="aeV6Ok">—</td></tr>
+          <tr><td>Solver 10 band multi-start (nâng cấp tính toán 2026-10-28): mục tiêu có phạt của bản chọn không tệ hơn đường cũ, RMS Mẫu A ≤ 0,54 dB, 0 vi phạm safety</td><td id="aeV7">—</td><td id="aeV7Ok">—</td></tr>
+          <tr><td>Khớp Harman IE 2019 v2 với đủ 13 tham số (Nâng cấp Khối 6): sai số mô hình 13 tham số ≤ 0,35 dB RMS trên 22 knots, giải AutoEQ 13 band cho IEM đạt giảm lỗi RMS ≥ 65% và 0 vi phạm safety</td><td id="aeV8">—</td><td id="aeV8Ok">—</td></tr>
+        </table>
+        <button class="btn primary" id="btnAeVerify" style="margin-top:12px;width:100%;justify-content:center">Chạy kiểm chứng Prompt 2 (Mẫu A + Mẫu C)</button>
+        <p class="note" style="margin-top:10px">Kiểm chứng chạy thật bộ tối ưu trên hai tai nghe mẫu kiểm chứng tích hợp (Mẫu A và Mẫu C trong danh sách tai nghe Bước 1; target Harman OE 2018, hiệu chỉnh Tilt/Bass/Ear Gain = 0) và đối chiếu tiêu chí bằng số đo — không thay đổi EQ đang nghe cho tới khi bạn tự bấm “Bước 3 — Chạy AutoEQ”.</p>
+      </div>
+
+      <!-- ======= ĐIỀU KHIỂN CHÍNH XÁC (Giai đoạn 4) ======= -->
+      <div class="panel" id="precPanel">
+        <h2>Điều khiển chính xác <span class="r" id="precTitle">Band 6 · 1 kHz</span></h2>
+        <label class="flabel" for="precType">Loại lọc của band đang chọn</label>
+        <select class="aesel" id="precType">
+          <option value="lowshelf">Low Shelf</option>
+          <option value="peaking">Peaking</option>
+          <option value="highshelf">High Shelf</option>
+          <option value="lowpass">Low Pass (12 dB/oct)</option>
+          <option value="highpass">High Pass (12 dB/oct)</option>
+          <option value="bandpass">Band Pass (0 dB peak)</option>
+          <option value="notch">Notch</option>
+          <option value="allpass">All Pass</option>
+        </select>
+        <div style="height:10px"></div>
+        <div class="frow3">
+          <div><label class="flabel" for="precFc">Fc (Hz)</label><input class="numin" id="precFc" type="number" min="20" max="20000" step="1" /></div>
+          <div><label class="flabel" for="precGain">Gain (dB)</label><input class="numin" id="precGain" type="number" min="-12" max="12" step="0.1" /></div>
+          <div><label class="flabel" for="precQ">Q</label><input class="numin" id="precQ" type="number" min="0.4" max="10" step="0.05" /></div>
+        </div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px">
+          <button class="btn small" id="precToggle">Tắt band</button>
+          <button class="btn small" id="precSolo">Solo band này</button>
+        </div>
+        <p class="note" style="margin:10px 0 0">Nhập số chính xác cho band đang chọn — áp xuống engine ngay; hệ số biquad được nội suy mượt trong worklet nên không gây click. Solo nghe riêng vùng tần của band qua lọc thông dải đặt tại đúng Fc/Q của band (các band khác bị thay bằng thông dải này ở đầu ra engine, đồ thị vẫn giữ nguyên EQ đầy đủ).</p>
+      </div>
+
+      <!-- ======= BANDS ======= -->
+      <div class="bands" id="bands"></div>
+
+      <!-- ======= DETAIL ======= -->
+      <div class="cols">
+        <div class="panel">
+          <h2>Hệ số biquad — band đang chọn <span class="r" id="coefTitle">Band 6 · 1 kHz</span></h2>
+          <div class="hz" id="hzLine">H(z) = (b0 + b1·z⁻¹ + b2·z⁻²) / (1 + a1·z⁻¹ + a2·z⁻²)</div>
+          <table style="margin-top:8px">
+            <tr><th>Hệ số</th><th>Giá trị (float64)</th></tr>
+            <tr><td>b0</td><td id="cB0">1.0000000000</td></tr>
+            <tr><td>b1</td><td id="cB1">0.0000000000</td></tr>
+            <tr><td>b2</td><td id="cB2">1.0000000000</td></tr>
+            <tr><td>a1</td><td id="cA1">0.0000000000</td></tr>
+            <tr><td>a2</td><td id="cA2">0.0000000000</td></tr>
+          </table>
+          <p class="note">Hệ số theo <b>Robert Bristow-Johnson — Audio EQ Cookbook</b>, đã chuẩn hoá theo a0. Bên trong worklet, cascade được xử lý dạng <b>Direct Form II Transposed</b> với biến trạng thái là số thực 64-bit (JS number). Engine chính là <b>AudioWorkletProcessor tự viết</b> — không dùng BiquadFilterNode.</p>
+          <details>
+            <summary>Xem mã nguồn AudioWorkletProcessor (engine đang chạy)</summary>
+            <pre id="workletSrc"></pre>
+          </details>
+        </div>
+
+        <div class="panel">
+          <h2>Kiểm chứng nghiệm thu Prompt 1</h2>
+          <table>
+            <tr><th>Hạng mục</th><th>Kết quả đo</th><th></th></tr>
+            <tr><td>Band 1 kHz, +6 dB, Q = 1.41 → đáp tuyến tại 1 kHz</td><td id="vResp">—</td><td id="vRespOk">—</td></tr>
+            <tr><td>Pre-amp tự động tương ứng (kỳ vọng −7.00 dB)</td><td id="vPre">—</td><td id="vPreOk">—</td></tr>
+            <tr><td>WASM + SIMD (v2): đáp tuyến biquad bằng kernel SIMD f32x4, lệch tối đa ≤ 0,05 dB so với JS (f64), có đường JS dự phòng</td><td id="wasmV1">—</td><td id="wasmV1Ok">—</td></tr>
+            <tr><td>Trần true-peak limiter</td><td>−1.0 dBTP</td><td class="pass">ĐẠT</td></tr>
+            <tr><td>Group delay FIR (N = 1023)</td><td id="vGd">—</td><td class="pass">HẰNG SỐ</td></tr>
+            <tr><td>Engine chính</td><td>Worklet tự viết</td><td class="pass">ĐẠT</td></tr>
+          </table>
+          <button class="btn primary" id="btnVerify" style="margin-top:12px;width:100%;justify-content:center">Chạy kiểm chứng: đặt 1 kHz = +6 dB · Q = 1.41</button>
+          <p class="note" style="margin-top:10px">Nút này đặt mọi band về phẳng, riêng band 1 kHz lên <b>+6 dB, Q = 1.41</b>, rồi đọc lại đáp tuyến giải tích tại đúng 1 kHz và pre-amp tự động. Sai số cho phép ±0.1 dB.</p>
+          <div class="formula" style="margin-top:6px">Đáp tuyến hiện tại — 31 Hz: <b id="r31">0.00</b> · 250 Hz: <b id="r250">0.00</b> · 1 kHz: <b id="r1k">0.00</b> · 4 kHz: <b id="r4k">0.00</b> · 16 kHz: <b id="r16k">0.00</b> dB</div>
+        </div>
+      </div>
+
+      <!-- ======= QA SUITE (Giai đoạn 6) ======= -->
+      <div class="panel" style="margin-top:14px">
+        <h2>Acoustic QA Suite &amp; Dashboard — Giai đoạn 6/6 <span class="r" id="qaState">chưa chạy trong phiên này</span></h2>
+        <p class="note" style="margin:0 0 10px">Bộ tín hiệu kiểm tra tích hợp — <b>Dirac impulse</b>, <b>log sine sweep 20 Hz–20 kHz</b>, <b>tone 1 kHz ở −1 / −20 dBFS</b> — được đưa qua <b>bản sao ngoại tuyến chính xác của toàn chuỗi DSP</b> (cascade biquad float64 đúng hệ số của engine, shelf/notch psychoacoustics, crossfeed ITD/ILD, brickwall true-peak limiter ×16 lookahead 128 mẫu −1.0 dBTP) và <b>đo thật</b>: mọi con số trong dashboard là kết quả đo trên tín hiệu đã xử lý, không phải số mục tiêu ghi sẵn. Bản sao ngoại tuyến dùng cùng công thức RBJ và cùng thuật toán limiter/crossfeed như worklet đang chạy; phần nghe thời gian thực vẫn do worklet đảm nhiệm.</p>
+        <div style="display:flex;flex-wrap:wrap;gap:8px">
+          <button class="btn primary" id="btnQaSuite">Chạy Acoustic QA Suite</button>
+          <button class="btn" id="btnQaAll">Chạy toàn bộ QA (Giai đoạn 1–5 + QA Suite)</button>
+          <button class="btn" id="btnQaMutation">Mutation test: +0.5 dB vào hệ số biquad</button>
+          <button class="btn" id="btnQaOfflineWorklet">Chạy đối chiếu qua OfflineAudioContext + AudioWorklet trình duyệt</button>
+        </div>
+        <p class="note" id="qaOfflineWorkletInfo" style="margin:10px 0 0">Chưa chạy — bấm nút để đo THD+N qua AudioWorklet thật trên trình duyệt này (timeout 1500 ms; nếu headless/không hỗ trợ sẽ báo rõ và giữ kết quả WORKLET_SRC đồng bộ).</p>
+        <p class="note" style="margin:10px 0 0"><b>Cổng hồi quy của bản web:</b> nút “Chạy toàn bộ QA” là tương đương của lệnh <b><span style="font-family:var(--mono)">pnpm qa</span></b> trong quy trình gốc — nó chạy lại lần lượt mọi panel kiểm chứng Giai đoạn 1–5 rồi chạy Acoustic QA Suite mới, gom tất cả vào dashboard dưới đây và sinh báo cáo tổng hợp một trang. Trạng thái EQ/psycho của bạn — cùng tai nghe đang chọn và toàn bộ danh sách tai nghe (kho tích hợp, tai nghe mẫu, tai nghe bạn thêm) — được chụp lại trước và khôi phục nguyên trạng sau khi chạy xong; dòng trạng thái sau mỗi lần chạy ghi rõ số mục tai nghe trước/sau để đối chiếu. <b>Toàn bộ kiểm chứng tự chạy một lần ngay khi tải trang</b> để các panel hiện số đo thật ngay khi mở app — bấm nút bất cứ lúc nào để chạy lại. <b>Mutation test</b> cộng sai có chủ đích +0.5 dB vào hệ số biquad của band 1 kHz trong <i>bản sao hệ số của harness QA</i> (không đụng vào engine đang nghe) để chứng minh bài kiểm tra đáp tuyến liên quan chuyển FAIL thật; mutation được gỡ ngay sau khi đo.</p>
+        <div class="locknote" id="qaGateNote2"></div>
+        <div>
+        <table class="qatable" style="margin-top:10px">
+          <tr><th style="min-width:170px">Test</th><th>Kỳ vọng</th><th>Giá trị đo</th><th>Kết quả</th><th>Cấu hình đã dùng</th></tr>
+          <tbody id="qaRows"><tr><td colspan="5" style="color:var(--dim)">Chưa có kết quả — toàn bộ kiểm chứng tự chạy khi tải trang, hoặc bấm “Chạy toàn bộ QA” ở trên để chạy lại.</td></tr></tbody>
+        </table>
+        </div>
+        <div class="kv" style="margin-top:6px"><span>Tổng kết</span><b id="qaSummary">—</b></div>
+        <canvas class="qair" id="qaIrCv" aria-label="Impulse response thu được cho IIR và FIR"></canvas>
+        <p class="note" id="qaIrNote" style="margin:6px 0 0">Impulse response: chạy QA Suite để thu IR thật của chuỗi IIR (amber) và FIR (cyan) từ Dirac impulse.</p>
+        <h2 style="margin-top:16px">Báo cáo tổng hợp QA</h2>
+        <div style="display:flex;flex-wrap:wrap;gap:8px">
+          <button class="btn small" id="btnQaRepJson" disabled>Tải báo cáo (.json)</button>
+          <button class="btn small" id="btnQaRepHtml" disabled>Tải báo cáo (.html)</button>
+        </div>
+        <div id="qaHistoryBox" style="display:none;margin-top:12px">
+          <h2 style="margin:0 0 6px">Lịch sử QA đã lưu (Opt-In)</h2>
+          <div style="display:flex;flex-wrap:wrap;gap:8px">
+            <button class="btn small" id="qaHistClearBtn">Xoá lịch sử QA</button>
+          </div>
+          <ul id="qaHistList" style="margin:8px 0 0"></ul>
+          <p class="note" style="margin:8px 0 0">Chỉ hiện khi Opt-In đang bật; mỗi lần “Chạy toàn bộ QA” sinh báo cáo xong sẽ tự thêm một mục (tối đa 15 lần gần nhất).</p>
+        </div>
+        <div id="qaReport"><p class="note" style="margin:8px 0 0">Báo cáo một trang sẽ hiện tại đây sau khi chạy toàn bộ QA (kèm tóm tắt từng giai đoạn, kết quả mutation và phán quyết cuối).</p></div>
+      </div>
+
+      <!-- ======= TỔNG HỢP HỆ THỐNG — MASTER ROADMAP (Giai đoạn 6) ======= -->
+      <div class="panel" style="margin-top:14px">
+        <h2>Tổng hợp hệ thống — Master Roadmap <span class="r">6/6 giai đoạn</span></h2>
+          <div class="chainbox">Nguồn phát (file / pink noise / sweep) → <b>AudioWorklet DSP</b> (biquad RBJ float64 + WASM f64, DF-II Transposed) → <b>EQ IIR Minimum-Phase / FIR Linear-Phase (Partitioned FFT)</b> → <b>Dynamic EQ</b> (detector sidechain độc lập trong worklet) → <b>Crossfeed / Binaural HRIR</b> (ITD/ILD) → <b>Loudness ISO 226 (6 section) + notch cá nhân</b> → <b>True-Peak Limiter −1.0 dBTP</b> (windowed-sinc ×16, lookahead 128 mẫu) → Đầu ra (analyser → master gain → loa/tai nghe)</div>
+        <p class="note" style="margin:8px 0 0">Lưu ý thứ tự vật lý trong worklet: các shelf loudness + notch chạy ngay sau cascade PEQ trong cùng tầng IIR, Dynamic EQ điều chế gain band theo block, crossfeed nằm sau EQ và trước limiter — sơ đồ trên là chuỗi chức năng tổng hợp của toàn hệ thống.</p>
+        <table style="margin-top:10px">
+          <tr><th>Thứ tự xây dựng</th><th>Nội dung</th><th>Trạng thái</th></tr>
+          <tr><td>1 · DSP Core</td><td class="mono" style="text-align:left">AudioWorklet tự viết, PEQ RBJ 10 band (mặc định) / 20 band (tự động/chọn tay), IIR/FIR, auto pre-amp, true-peak limiter, FIR Partitioned FFT Convolution, Dithering TPDF cho IR 16-bit, Chế độ Tự Động Toàn Diện mặc định BẬT, Look-ahead Brickwall True-Peak Limiter ×16 (Nhóm 1 v2)</td><td class="pass">ĐÃ XONG</td></tr>
+          <tr><td>2 · AutoEQ &amp; Target</td><td class="mono" style="text-align:left">Parser đường đo, 12 target curve (6 target lấy từ file gốc AutoEq, 2 xấp xỉ ghi nhãn rõ), RLS + Nelder–Mead, acoustic safety chống boost null</td><td class="pass">ĐÃ XONG</td></tr>
+          <tr><td>3 · Psychoacoustics</td><td class="mono" style="text-align:left">Loudness ISO 226, notch ống tai cá nhân, crossfeed, Dynamic EQ, preset schema v2, suy luận ống tai từ nhạc thực tế (Nhóm 2 v2)</td><td class="pass">ĐÃ XONG</td></tr>
+          <tr><td>4 · Studio UI &amp; A/B/X</td><td class="mono" style="text-align:left">Kéo-thả node trên đồ thị, 60 fps, solo band, undo/redo, blind A/B/X cân LUFS BS.1770</td><td class="pass">ĐÃ XONG</td></tr>
+          <tr><td>5 · Database &amp; Export</td><td class="mono" style="text-align:left">Kho đường đo + import 3 định dạng, hardware constraint solver, xuất APO/SoundSource/Wavelet/Poweramp/JamesDSP + IR WAV</td><td class="pass">ĐÃ XONG</td></tr>
+          <tr><td>6 · QA Suite</td><td class="mono" style="text-align:left">Phase/Group Delay giải tích, THD+N, null test IIR+FIR, IR capture, mutation test, dashboard + cổng xuất file, báo cáo tổng hợp</td><td class="pass">ĐÃ XONG</td></tr>
+        </table>
+        <h2 style="margin-top:16px">Giới hạn nền tảng đã gặp (ghi trung thực)</h2>
+        <ul class="attrlist">
+          <li><b>Worklet không kiểm chứng nghe thật được trong trình duyệt headless</b> — <span>môi trường kiểm thử tự động treo ở bước nạp module AudioWorklet; QA âm học của Giai đoạn 6 vì vậy chạy trên bản sao ngoại tuyến dùng chung công thức/thuật toán với worklet, và phần phát tiếng thật cần nghe thử trên trình duyệt của bạn.</span></li>
+          <li><b>ISO 226 trong app đã là công thức đầy đủ (từ 2026-10-26)</b> — <span>29 tần số 1/3-octave + ngân hàng 6 section khớp đường cong đầy đủ; giới hạn còn lại: trên 12,5 kHz tiêu chuẩn không định nghĩa contour. Cập nhật 2026-10-31 (Nâng cấp Khối 5): app đã chuyển hẳn sang ISO 226:2023(E) — Công thức (1) &amp; (2) Mục 4.1–4.2 + Table 1 chính thức (α<sub>f</sub> tại 1 kHz = 0,300); hệ 2003 cũ chỉ còn giữ trong Khối 5 để đối chiếu độ lệch.</span></li>
+          <li><b>Chế độ 20 band — solver nay sinh đủ 20 band thật (v2, ĐÃ XONG 2026-10-26)</b> — <span>engine/worklet có bộ chọn 10 / 20 band ở khu vực EQ: ở chế độ 20 band, worklet xử lý đủ 20 band độc lập (tần số log-spaced 31 Hz–16 kHz), đồ thị/pre-amp/xuất preset đều theo đủ 20 band, và nghe thử profile Qudelix-5K khớp 1:1 với file xuất. Từ bản này, bộ giải AutoEQ (aeSolve) sinh đủ 20 band thật khi chọn 20 band tối ưu (multi-start λ tương đối, hàng kiểm chứng aeV5): Mẫu A 2,18 → 0,09 dB (10 band: 0,53 dB), Mẫu B 6,18 → 0,22 dB (10 band: 0,38 dB), Mẫu C 1,15 → 0,17 dB (10 band: 0,24 dB), 0 vi phạm safety, ánh xạ solver→engine 20 band là đồng nhất 1:1; đường 10 band giữ nguyên từng band so với bản trước.</span></li>
+          <li><b>Độ phủ của kho tai nghe có giới hạn thật</b> — <span>kho nhúng 1.600 đường cong đo gốc từ AutoEq (đã kiểm định; 240 mục đạt kiểm định khác bị cắt vì quota dung lượng trang, và trang tĩnh không tự cập nhật dữ liệu mới). Đây là phần dữ liệu đo công khai app lấy được từ các nguồn đã dùng — không phải mọi tai nghe từng sản xuất; dữ liệu Crinacle không có trong kho vì repo AutoEq không kèm file đáp tuyến thô của nguồn này. Mỗi đường cong đã resample về lưới 1/12 octave (121 điểm) nên chi tiết mịn hơn 1/12 octave của bản đo gốc không còn trong bản nhúng.</span></li>
+          <li><b>Trang tĩnh, không có backend</b> — <span>preset và báo cáo sống trong phiên làm việc và qua file bạn tải xuống; không có tài khoản, đồng bộ đám mây hay kho dữ liệu đo trực tuyến cập nhật tự động.</span></li>
+        </ul>
+        <h2 style="margin-top:16px">Backlog v2 — các khoảng trống thật đã phát hiện khi xây &amp; kiểm chứng</h2>
+        <ol class="backlog">
+          <li><b>Nạp bảng ISO 226 đầy đủ — ĐÃ XONG (2026-10-26)</b> — công thức chuẩn 29 tần số + ngân hàng 6 section khớp đường cong đầy đủ, thay bảng rút gọn cũ và xấp xỉ 2 shelf; sai số khớp cặp chuẩn 60/80 phon: RMS 0,40 dB, max 0,91 dB (đo bằng harness trên đúng code đã giao; xem báo cáo chạy).</li>
+          <li><b>Mở rộng độ phủ kho đo — ĐÃ XONG phần On-Demand (2026-10-27, Chặng 2 bước 2.2)</b> — dbEncodeV ↔ dbDecodeV (mã hoá (v*10+600) về base36 2 ký tự, từ chối giá trị ngoài [-60, 69,5] dB thay vì kẹp lặng (sửa 2026-10-27)); Pack Loader + GitHub AutoEq Fetcher: nhập pack JSON (entries/v/points/values) hoặc nhiều file CSV/TXT cùng lúc, tải trực tiếp file CSV từ raw.githubusercontent.com/jaakkopasanen/AutoEq (đường dẫn results/... do người dùng nhập, chuẩn hoá 0 dB @ 1 kHz, nội suy lên lưới 121 điểm bằng aeInterp, mã hoá dbEncodeV); mọi mục nạp đều qua dbValidateEntry + chống trùng tên+nguồn, đăng ký vào AE_PHONES (id db:nguồn|tên) và hiện ngay ở danh sách Bước 1; gói đã nhập lưu vào localStorage để nạp lại bằng nút “Nạp gói mở rộng On-Demand”. KHÔNG nhúng sẵn đường cong đo mới (tránh bịa dữ liệu): danh mục DB_EXT_SOURCES chỉ liệt kê tên nguồn phụ trợ (Hi End Portable, Fahryst, Filk, Harpo, DHRME, Auriculares Argentina, Crinacle) để tham khảo. dbExtSelfCheck trên dữ liệu thật 1600 mục: round-trip Sennheiser HD 600 sai số 0,000 dB trên 121 điểm; nạp thử 2 hợp lệ vào / 3 hỏng bị loại (lệch lưới/NaN/trùng); trùng kho thật bị chặn; kho giữ nguyên 1600 mục sau self-check; mục bẩn trong kho pack lưu localStorage (null/v-mảng) bị lọc lúc đọc, nạp/lưu không ném (2026-11-05). Hàng kiểm chứng p5V8 mới trong panel Prompt 5 + thu thập QA Giai đoạn 6 + hàng qaRunSuite (dùng id p5V8 vì p5V6 đã là hàng CamillaDSP/Qudelix). Giới hạn trung thực: tải GitHub cần mạng và CORS của raw.githubusercontent.com, đường dẫn results/... do người dùng nhập (app không đoán sẵn file cụ thể); CSV pack không mang metadata thì tên lấy từ tên file, rig/type để mặc định other/trống; kiểm chứng nút bấm tay trên trình duyệt thật vẫn cần bấm (môi trường harness không có DOM/fetch thật).</li>
+          <li><b>Bộ giải AutoEQ tạo đủ 20 band — ĐÃ XONG (2026-10-26)</b> — aeSolve sinh đủ 20 band thật khi chọn 20 band tối ưu (multi-start λ tương đối 0.1/0.3, NM 6 vòng, phạt gain 0.06, chọn theo hàm mục tiêu có phạt); xem số đo ở mục chế độ 20 band ngay trên. <b>Chuyển solver sang Web Worker — ĐÃ XONG (2026-10-27, Chặng 2 bước 2.1):</b> AE_WORKER_SRC dựng bằng .toString() của chính các hàm thuần main thread (rbjCoeffs, biquadMagDb, aeClampBand, aeBandCurve, aeTotalCurve, aeSolveSingle, aeSolveObjective, aeSolve) cộng hằng số solver và var bands = [] (guard rỗng trong rbjCoeffs đọc biến toàn cục bands); aeSolveInWorker chạy Worker thật qua Blob với timeout 3000 ms, rơi về đồng bộ khi không hỗ trợ Worker/đang chạy QA tổng/lỗi; hàm đồng bộ aeSolve giữ nguyên chữ ký cho harness và fallback. aeWorkerParityCheck trên Mẫu A → Harman OE 2018: maxDiff === 0 tuyệt đối ở cả 10 band (10 band) và 20 band (20 band); hồi quy Mẫu A giữ nguyên 2,18 → 0,53 dB (10 band) và 2,18 → 0,09 dB (20 band), 0 vi phạm safety; đường fallback của aeSolveInWorker cho bands đồng nhất tuyệt đối với aeSolve. Hàng kiểm chứng aeV6 mới trong panel Prompt 2 + thu thập QA Giai đoạn 6 + hàng qaRunSuite; dòng trạng thái #aeWorkerInfo trong panel kết quả tối ưu. Giới hạn trung thực: pipeline AutoEQ chính vẫn dùng aeSolve đồng bộ để không đổi thời điểm áp kết quả của các luồng tự động — worker là điểm vào bất đồng bộ đã kiểm chứng parity, sẵn sàng nối vào nút chạy AutoEQ khi người dùng yêu cầu; đường Worker thật trên trình duyệt cần bấm kiểm chứng tay (môi trường harness không có window.Worker nên chỉ đo được đường fallback + parity nguồn).</li>
+          <li><b>Solver nhận biết null — ĐÃ XONG (2026-10-28, hạng mục A)</b> — aeSolveSingle suy khoảng null từ chính các điểm có trọng số 0 (nới đủ một bước lưới mỗi phía, tới AE_FMIN/AE_FMAX khi chạm biên), phạt band boost có tâm trong null ngay trong hàm mục tiêu NM (hệ số 5,0), kẹp gain ở vòng RLS và chiếu cuối về 0 dB; hậu kiểm aeCompute giữ nguyên làm lớp bảo vệ thứ hai. Chạy lại toàn kho 1.600 tai nghe bằng đúng code này: cờ nullBoost 5 → 0; RMS trung bình sau EQ 0.5003 dB (trước 0,5029 dB), tỉ lệ ≤ 1 dB 94.88% (trước 94,75%), tỉ lệ ≤ 0,5 dB 62.44% (trước 62,44%), 0 vi phạm safety; 5 tai nghe bị cờ cũ đều hết cờ và không tệ hơn. Lưu ý trung thực: boost qua sườn band lân cận vào điểm null vẫn tồn tại như trước (đường cong tổng tại fc null vẫn dương do các band kề bên) — cờ nullBoost chỉ đếm band có tâm trong null với gain &gt; 0,5 dB.</li>
+          <li><b>Best-of tự động 10/20 band — ĐÃ XONG (2026-10-28, hạng mục B)</b> — khi Full Auto tự chọn 10 band, app giải cả 10 và 20 band rồi giữ kết quả có aeSolveObjective thấp hơn (tính trên total sau hậu kiểm null, đúng tiêu chí aeSolve đã dùng chọn ứng viên shelf/lambda; hoà thì giữ 10 band). Chỉ áp cho đường tự động (cờ AUTO.bestOfPending do autoMaybeSolve đặt, handler nút xoá cờ ngay khi đọc); nút Chạy AutoEQ bấm tay và mọi lời gọi aeCompute trực tiếp (harness/QA) giữ nguyên hành vi cũ; aeSolve không đổi chữ ký nên parity Worker giữ nguyên. Kiểm chứng bằng đúng code đã giao: mẫu phân tầng 56 tai nghe auto-10 (mỗi 6 lấy 1 trong 331) khớp tuyệt đối thí nghiệm offline 18:52 (chọn band + RMS 56/56), đường 10 band thuần khớp catalog A 56/56, 0 vi phạm safety, 0 nullBoost; trung bình mẫu 0,5027 → 0,3567 dB; thí nghiệm đầy đủ 331 tai nghe auto-10 cho trung bình nhóm 0,3559 dB, 97,89% ≤ 1 dB. Lưu ý trung thực: objective có phạt gain nên 3/56 mẫu có RMS tệ hơn 10 band thuần (tệ nhất Wyze Buds Pro 0,3825 → 0,4663 dB) — đúng đánh đổi đã biết của tiêu chí đã chọn ở lần 18:52, không phải lỗi wrapper. 5 tai nghe Squiglink mới đều tự chọn 20 band nên không bị ảnh hưởng: kiểm chứng 20 band khớp báo cáo (Skyland 0,4250; HD 480 Pro 0,3653; D1 0,4642; WP900 0,4993; UCTS 3,1296 dB).</li>
+          <li><b>Nâng cấp khả năng tính toán solver — ĐÃ XONG (2026-10-28)</b> — 10 band nay dùng multi-start như đường 20 band: 2 ứng viên (đường cũ ridge tuyệt đối + ridge tương đối 0,3, NM 2 vòng, phạt 0,02), chọn theo hàm mục tiêu có phạt; vì đường cũ nằm trong tập ứng viên nên mục tiêu có phạt không bao giờ tệ hơn trước. Đo bằng Node trên lưới chuẩn 1/24 oct: Mẫu A 10 band 0,5337 → 0,5304 dB, Mẫu B 0,3758 → 0,2440 dB, Mẫu C 0,2439 → 0,2006 dB, 0 vi phạm safety, null 8011 Hz không bị boost; 13 tai nghe thật trong DB: RMS trung bình 0,945 → 0,588 dB, 11/13 cải thiện, 1 giữ nguyên (đường cũ thắng), 1 tệ hơn 0,09 dB do đánh đổi phạt gain (SeeAudio Yume). 20 band giữ nguyên 2 ứng viên 0,1/0,3 (quét thêm 0,05/0,2/0,5 không cải thiện rõ). Đã thử và KHÔNG đưa vào: lưới mục tiêu dày 1/48 oct (RMS trên lưới chuẩn tệ hơn nhẹ + tốn gấp đôi thời gian) và polish Gauss-Newton/Levenberg-Marquardt (không cải thiện thêm sau khi chọn ứng viên). RLS bỏ tính lại đường cong gốc trùng lặp (kết quả bit-identical, tiết kiệm 10/20 đường cong mỗi vòng lặp). Pre-amp quét đỉnh trên lưới 960 điểm thay vì 240 (band test +6 dB/Q1.41 tại 1 kHz: đỉnh lưới 5,9911 → 5,9997 dB, pre-amp −6,9911 → −6,9997 dB). Rà soát độ chính xác số: đường solver đã float64 toàn bộ; các điểm float32 còn lại chỉ ở đường hiển thị WASM SIMD (lệch đo được ≤0,00009 dB), bộ đệm AudioWorklet/analyser (định dạng của API) và taps FIR (định dạng xuất) — không ảnh hưởng kết quả giải. Hàng kiểm chứng aeV7 mới trong panel Prompt 2 + thu thập QA Giai đoạn 6.</li>
+          <li><b>Đo QA trên worklet thật — ĐÃ XONG (2026-10-26)</b> — THD+N và Null IIR/FIR chạy trực tiếp qua AutoEqProcessor thật khởi tạo từ WORKLET_SRC (không addModule, tránh treo headless); thêm nút #btnQaOfflineWorklet trong panel Giai đoạn 6: trên trình duyệt thật, nút tạo OfflineAudioContext + AudioWorkletNode từ WORKLET_SRC với Promise.race timeout 1500 ms, render sine 1 kHz −20 dBFS qua node thật và đo THD+N bằng cùng khớp qaThdNFit; nếu timeout hoặc môi trường không hỗ trợ, nút báo rõ lý do và giữ nguyên kết quả WORKLET_SRC đồng bộ. Số đo thật trên đúng code đã giao (harness xem báo cáo chạy): THD+N worklet −153,33 dB ở −20 dBFS (gương Float32 −153,33 dB, lệch 0,00 dB; bản float64 −256,77 dB) và −156,66 dB ở −1 dBFS; Null IIR worklet −161,41 dBFS (gương −161,69 dBFS, lệch 0,27 dB; bản float64 −264,92 dBFS); Null FIR worklet −161,51 dBFS (bản float64 −257,30 dBFS). Lệch thô với bản float64 (~100 dB) là sàn lượng tử Float32 của AudioWorklet, không phải lệch DSP — xem ghi chú đầu khối Chặng 1 trong code.</li>
+          <li><b>Rust/WASM cho nhân DSP</b> — ĐÃ XONG dạng WASM+SIMD cho đáp tuyến (2026-10-26, xem mục chi tiết sau HRTF): kernel SIMD f32x4 nhúng base64, đường JS dự phòng, dung sai đo được 0,05 dB. Thêm Chặng 3 (2026-10-27): nhân DSP WASM f64 thật (module 628 byte, hàm biquad_block_f64, quy hoạch COEFF 0 / STATE 256 / BUF_L 512 / BUF_R 1024 / COEFF_R 1536) qua wasmCreateDspCore, kèm fallback JS float64 tách kênh; wasmDspSelfCheck: WebAssembly.validate ĐẠT, maxAbsDiff = 0 tuyệt đối ở cả 10 và 20 band (ngưỡng 1e-14), đáp tuyến 1 kHz qua nhân WASM = +6.0000 dB (ngưỡng ±0.001 dB). Tên wasmSelfCheck đã có chủ (kernel SIMD f32) nên hàm kiểm f64 đặt tên wasmDspSelfCheck. Nhân f64 phục vụ xử lý khối/offline + QA; engine realtime vẫn chạy worklet JS.</li>
+          <li><b>True-peak oversampling cao hơn — ĐÃ XONG (2026-10-26)</b> — limiter nay dùng ước lượng true-peak windowed-sinc ×16 (Blackman, hỗ trợ ±16 mẫu) thay Catmull-Rom ×4, lookahead 128 mẫu, envelope mượt có lookahead (cửa sổ 111 mẫu, dốc 0.005 dB/mẫu, release 0.0002/mẫu) luôn kẹp bởi đích của chính mẫu ra; đồng thời khử non-finite/denormal ngay tại đầu tầng IIR/FIR (trước đây ±Inf làm trạng thái DF-II nhiễm NaN vĩnh viễn). Kiểm chứng trên đúng code đã giao (harness 17/17 PASS): burst sine 12 kHz amp 1.2 TP ×16 −1.000 dBTP, burst noise amp 1.25 TP ×16 −0.997 dBTP, xung 2.0 và 4.0 sau sine ở trần −1.000/−0.999 dBTP, sine −20 dBFS đi qua nguyên vẹn (sai lệch 0), worklet = bản sao ngoại tuyến (sai lệch 0.00e+0), mốc RBJ 1 kHz +6.000 dB giữ nguyên. Giới hạn trung thực: tiêu chí đạt đo ở ×16 (gấp 4 lần chuẩn BS.1770 4×); đo tham chiếu ở ×32 cho burst noise −0.494 dBTP (cao hơn do thước đo càng mịn đọc càng cao trên nhiễu trắng, không phải lỗi envelope — thước ×64 sẽ còn đọc cao hơn, nên điểm dừng là một độ phân giải đo xác định, không phải thước mịn nhất).</li>
+          <li><b>Dynamic EQ đa detector — ĐÃ XONG (2026-10-26)</b> — sidechain độc lập (BP/LP/HP, tần số/Q riêng, mặc định theo band), detector Peak + RMS theo block 128 mẫu, offset realtime từ worklet vẽ lên đồ thị chính; kiểm chứng trên worklet thật với 4 band sidechain khác nhau cùng lúc.</li>
+          <li><b>Bộ giải Minimum/Mixed-Phase FIR từ Excess Phase — ĐÃ XONG (2026-10-26)</b> — IR Mixed Phase = pha tối thiểu (cepstrum, như bản "min" cũ) + &alpha; × pha thừa, pha thừa = pha tuyến tính trễ (N−1)/2 trừ pha tối thiểu, cả hai ở dạng chưa wrap nên cộng tuyến tính theo &alpha; là đúng; phổ chỉ dựng nửa 0..N/2 rồi gương liên hợp để taps luôn thực, bin Nyquist ép pha 0 (chỉ ảnh hưởng đúng tần số Nyquist, ngoài dải kiểm chứng 20 Hz–16 kHz). Thanh trượt &alpha; mặc định 50% (tự động cân bằng giữa trễ thấp và pre-ringing thấp), &alpha;=0% ≡ Minimum Phase, &alpha;=100% ≈ Linear Phase; xuất cả float 32-bit và 16-bit + TPDF, tên file và chunk INFO ghi rõ "Mixed Phase (excess xx%)". Kiểm chứng trên đúng code đã giao (harness 20/20 PASS, N=4096, 48 kHz): biên độ giữ nguyên ở mọi &alpha; (lệch tối đa 0,012 dB, RMS 0,002–0,003 dB ở 20 Hz–16 kHz); đỉnh IR dịch đúng &alpha;×D (0/512/1024/1536/2048 mẫu); centroid tăng đơn điệu 0,3 → 2047,9 mẫu; group delay tại 1 kHz 1,4 mẫu (&alpha;=0) → 2047,7 mẫu (&alpha;=1, D=2047,5); &alpha;=1 gần đối xứng (sai lệch tương đối 0,0007); &alpha;=0 trùng bản "min" (sai lệch 1,39×10<sup>−15</sup>); bản "min"/"lin" cũ không đổi (sai lệch 0); &alpha; NaN → 0,5, &alpha; ngoài [0,1] được kẹp; mọi taps hữu hạn. Hàng P5 V4 trong app nay kiểm cả Mixed-Phase &alpha;=50% với cùng ngưỡng ±0,5 dB.</li>
+          <li><b>Bảo toàn đặc tính gốc (Tilt/Bass) — ĐÃ XONG (2026-10-26)</b> — checkbox mới ở panel AutoEQ: solver khớp correction gốc theo hai thước đo — độ dốc 500 Hz–8 kHz và mức bass trung bình 50–150 Hz (cùng W(f), vùng null đã loại) — trên hai cơ sở tilt log2(f/1000) và bass shelf đúng dạng của aeTargetCurve, trừ hai thành phần đó khỏi correction rồi cộng lại slider Tilt/Bass thủ công — đáp tuyến sau EQ giữ tilt/bass gốc của tai nghe, chỉ sửa lệch cục bộ; mặc định tắt, cờ được lưu/khôi phục cùng trạng thái tự động, hàng kiểm chứng aeV4 trong panel Prompt 2 đo trực tiếp độ giữ tilt/bass. Kiểm chứng trên đúng code đã giao (harness 11/11 PASS): Mẫu A — khớp correction tilt +0,10 dB/oct, bass −3,96 dB; target đã bảo toàn so với đáp tuyến gốc Δtilt 0,000 dB/oct, Δbass −0,016 dB; đáp tuyến sau EQ so với gốc Δtilt −0,013 dB/oct, Δbass +0,077 dB, 0 vi phạm safety, RMS so với target đã bảo toàn 1,05 → 0,20 dB; tắt chế độ cho đúng solver cũ (sai lệch 0, RMS 2,18 → 0,53 dB); Mẫu C null 8011 Hz vẫn an toàn khi bật chế độ; 9/9 script block + worklet riêng node --check OK.</li>
+          <li><b>Suy luận cộng hưởng ống tai từ nhạc thực tế (Pink Noise / nhạc của bạn) — ĐÃ XONG (2026-10-26)</b> — notch dò là BiquadFilterNode peaking thật nằm sẵn trong chuỗi phát (inputBus → notch dò → worklet), gain 0 dB khi tắt = đồng nhất theo công thức RBJ peaking nên không đổi âm thanh; khi quét, gain −12 dB, Q 8, quét logarit 5.5 → 9.5 kHz lặp 12 giây trên pink noise tích hợp hoặc file nhạc của bạn đang phát qua engine. Người dùng đánh dấu điểm êm nhất (nhạc thực tế) đối chiếu với điểm chói nhất của quét tone đã có: khớp trong ±2 bán âm → đề xuất notch = trung bình hình học hai đánh dấu, bấm tay mới áp dụng (giữ nguyên độ sâu/Q); lệch hơn → giữ cả hai đánh dấu, không tự áp dụng. Hai đánh dấu lưu/khôi phục cùng trạng thái tự động (localStorage). Đây là suy luận cảm nhận, không phải phép đo bằng micro — ghi rõ trong app. Kiểm chứng trên đúng code đã giao (harness 17/17 PASS): ánh xạ quét đúng tuyệt đối (5500/7228/9500 Hz tại 0/50/100%); 1 bán âm → KHỚP, đề xuất 7411 Hz; đúng 2 bán âm → KHỚP (sau khi sửa ở gốc lỗi biên float 2,0000000000000004 &gt; 2 bằng epsilon 1e-9 bán âm, không nới ngưỡng); 7200 vs 9500 Hz (4,80 bán âm) → CHƯA KHỚP; đầu vào không hợp lệ → null; gain 0 dB đồng nhất tuyệt đối (lệch 0 dB tại 100 Hz–16 kHz), −12,000 dB đúng tâm dò, −0,0043 dB tại 1 kHz (Q 8 hẹp); mốc RBJ 1 kHz +6,000 dB giữ nguyên. Hàng kiểm chứng psV6 mới trong panel Prompt 3. 9/9 script block + worklet riêng node --check OK.</li>
+          <li><b>Chấm điểm mù đa cấu hình (Nhóm 2 v2) — ĐÃ XONG (2026-10-26)</b> — khác A/B/X (đoán X): chấm điểm ưa thích cho tối đa 4 ứng viên cấu hình EQ, thứ tự nghe xáo trộn Fisher-Yates và ẩn danh (Mẫu 1…N), chấm 1–5 sao từng mẫu (chỉ chấm sau khi đã nghe mẫu đó), nghe lại/chấm lại được trước khi hiện kết quả, xếp hạng theo điểm giảm dần (hoà điểm → mẫu trước thắng), điểm trung bình kèm theo; cấu hình thắng chỉ áp dụng khi bấm tay — Chế độ Tự Động Toàn Diện không bao giờ tự áp dụng kết quả chấm mù (lựa chọn cảm nhận). Trong lúc chấm, ứng viên đang nghe ghi đè lên dải band hiện tại và nút “Dừng / khôi phục” trả lại đúng cấu hình trước khi chấm (baseline chụp lúc bắt đầu); bắt đầu/xoá giữa chừng bị chặn để không hỏng baseline; Solo Band đang bật cũng chặn bắt đầu/nghe để kết quả không lệch. Ứng viên lưu localStorage riêng (webAutoEq.blind.v1, chỉ ở máy này). Giới hạn trung thực (đã gỡ 2026-10-31): trước đây chưa cân LUFS giữa các ứng viên như A/B/X — nay đã cân LUFS BS.1770 (mặc định bật, trim chỉ giảm qua cùng đường slotLin của worklet); nghe/chấm thật và hàng psV7 trong app vẫn cần bấm trên trình duyệt thật (giới hạn headless cũ, không đổi).</li>
+          <li><b>Dithering TPDF — ĐÃ XONG (2026-10-26)</b> — xuất IR 16-bit PCM cộng nhiễu TPDF (tổng hai nhiễu đều độc lập, phân phối tam giác [−1, +1] LSB) trước khi làm tròn và kẹp về [−32768, 32767]; kiểm chứng trên đúng code đã giao: nhiễu N=200.000 có trung bình 0,00120 LSB, phương sai 0,16658 LSB² (đích 1/6), P(|n|&lt;0,5)=0,75113 (đích 0,75); DC 0,25 LSB lượng tử hoá cho trung bình 0,24985 LSB (không dither luôn 0,00); giải mã từ byte WAV thật cho trung bình 0,25439 LSB, hai kênh stereo khớp nhau, kẹp đúng ±32767/−32768. Bản IR float 32-bit và đường phát realtime float không đổi và không thêm dither (dither chỉ có nghĩa tại bước lượng tử hoá).</li>
+          <li><b>HRTF cá nhân hoá cho crossfeed</b> — ĐÃ XONG (2026-10-26, xem mục chi tiết sau EasyEffects): nạp HRTF JSON/WAV thật + binaural convolution, SOFA HDF5 giải mã thật từ 2026-10-28 (xem mục chi tiết sau EasyEffects).</li>
+          <li><b>Headroom cho null test với limiter — ĐÃ XONG (2026-10-26)</b> — qaNullIirWithLimiter: nhiễu 16 384 mẫu amp 0,15 qua worklet thật với limiter BẬT và pre-amp −6 dB (luật −(maxPos+1) dB, maxPos +5 dB của QA_TEST_BANDS), 64 block warm-up 0, bù trễ LA=128 và bù gain tĩnh nghịch đảo rồi qua cascade nghịch đảo. Số đo thật trên đúng code đã giao: phần dư −169,36 dBFS (ngưỡng −80), minGr = 1 (limiter không cắt nhầm), đỉnh ra −19,44 dBTP (dưới trần −1,0 dBTP).</li>
+          <li><b>Lưu trữ preset &amp; lịch sử QA phía máy khách bền vững theo lựa chọn của người dùng — ĐÃ XONG (2026-10-26)</b> — kho Opt-In mặc định TẮT: nút #psStoreOptIn trong panel Preset v2, nút lưu/xoá + nút Đổi tên từng preset (giữ nguyên savedAt/thứ tự, tên dài cắt 80 ký tự) + danh sách tối đa 20 preset v2 (áp dụng gọi applyPresetV2, xoá từng mục), khung #qaHistoryBox trên báo cáo QA (tối đa 15 lần chạy, tải JSON từng mục, xoá từng mục/xoá hết); mỗi lần qaBuildReport() chạy xong tự lưu tóm tắt khi Opt-In bật. Đồng bộ best-effort sang IndexedDB riêng “webAutoEqVault.v1” (store userVault, không chạm kho tai nghe); tắt Opt-In là xoá sạch localStorage + IndexedDB ngay. vaultSelfCheck() đạt cả 7 kịch bản trên store bộ nhớ cô lập (từ chối khi tắt, khớp 100% khi bật, xoá sạch khi tắt lại); khi thư viện đầy (20 mục) thì lưu preset mới sẽ báo tên preset cũ nhất vừa bị loại theo FIFO; mục bẩn trong kho (null/chuỗi/số/mảng) bị lọc lúc đọc, đổi tên/render không ném (2026-11-05); nhập bundle bỏ qua preset trùng tên và báo preset cũ nhất bị loại do FIFO (2026-11-05).</li>
+          <li><b>Giải mã FLAC/WAV/MP3 + Transport (Nhóm 3 v2) — ĐÃ XONG (2026-10-26)</b> — playlist nhiều file (chọn nhiều file hoặc kéo-thả), giải mã bằng decodeAudioData thành AudioBuffer phát qua đúng engine DSP (seek chính xác, Loop A–B bằng loopStart/loopEnd); giải mã thất bại tự rơi về đường &lt;audio&gt; cũ (seek bằng currentTime, Loop A–B bằng tua lại) thay vì lỗi; hết bài tự chuyển bài tiếp theo trừ khi Loop A–B bật; chọn bài tay luôn ghi đè tự chuyển. Kiểm chứng trên đúng code đã giao (harness xem báo cáo chạy): đoán định dạng, kẹp A–B, wrap vị trí loop, chỉ số playlist. Giới hạn trung thực: khả năng giải mã FLAC bằng decodeAudioData tuỳ trình duyệt — Chrome giải mã được, trình duyệt không hỗ trợ dùng đường &lt;audio&gt;; nghe/phát thật và hàng tự kiểm trong app vẫn cần bấm trên trình duyệt thật (giới hạn headless cũ, không đổi).</li>
+          <li><b>Định tuyến âm thanh hệ thống qua getDisplayMedia (Nhóm 3 v2) — ĐÃ XONG (2026-10-26)</b> — nút lấy âm thanh hệ thống/tab bằng getDisplayMedia (video:true, audio:true), audio track nối qua MediaStreamSource vào inputBus nên chạy đúng engine DSP; video của luồng không hiển thị và không dùng cho DSP; không có audio track thì báo rõ và không giữ luồng; dừng chia sẻ từ trình duyệt tự ngắt nguồn qua sự kiện ended; bắt đầu nguồn hệ thống tự dừng file/pink/sweep và ngược lại. Kiểm chứng trên đúng code đã giao (harness xem báo cáo chạy): có/không có audio track, đếm track, tự kiểm 6/6. Giới hạn trung thực: khả năng lấy âm thanh hệ thống tuỳ trình duyệt/hệ điều hành (Chrome máy tính tốt nhất; Safari/Firefox hạn chế, có thể chỉ lấy âm thanh tab); nội dung được bảo vệ có thể không chia sẻ được âm thanh; nghe thật qua trình duyệt thật vẫn cần bấm trên trình duyệt thật (giới hạn headless cũ, không đổi).</li>
+          <li><b>Đo đáp tuyến thực tế qua Microphone + Sine Sweep (Nhóm 3 v2) — ĐÃ XONG (2026-10-26)</b> — sweep logarit 20 Hz → 20 kHz (8 giây, dùng đúng bộ sinh sweep có sẵn) phát thẳng ra loa không qua EQ, microphone thu qua AnalyserNode (đã yêu cầu tắt echo/noise/auto-gain), bắt đáp tuyến tại 31 tần số chuẩn khi sweep quét qua, hiển thị theo dB tương đối điểm gần 1 kHz nhất (gain tuyệt đối của mic không biết được); kết quả không tự áp vào EQ, lưu ở máy này và tự hiện lại khi mở app; bắt đầu đo tự dừng file/pink/hệ thống và ngược lại. Kiểm chứng trên đúng code đã giao (harness xem báo cáo chạy): ánh xạ sweep, bin analyser, chuẩn hoá, mức RMS, chạy đo đầu-cuối với stub. Giới hạn trung thực: đây là đo âm học qua loa + phòng + microphone (không phải đáp tuyến tai nghe thuần trừ khi dùng coupler/mic đo sát củ loa); trình duyệt có thể vẫn xử lý tiếng dù đã yêu cầu tắt; nghe/đo thật vẫn cần bấm trên trình duyệt thật (giới hạn headless cũ, không đổi).</li>
+          <li><b>Đồng bộ thông số xuống DAC/DSP qua WebUSB/WebSerial/WebHID (Nhóm 3 v2) — ĐÃ XONG (2026-10-26)</b> — khung nhị phân [0xAA, 0x55, count] + mỗi band 8 byte (freq u16, gain i16 theo 0,01 dB, Q u16 theo 0,01, type, on) + checksum (tổng mod 256), parse-back trước mỗi lần gửi; WebUSB tự tìm endpoint OUT đầu tiên, WebSerial 115200 baud, WebHID gửi report 0; thiết bị mô phỏng cùng giao diện gửi để kiểm chứng khung mà không cần phần cứng. Gửi chỉ khi bấm tay (cố ý không tự động — ghi đè phần cứng không nên tự động). Kiểm chứng trên đúng code đã giao (harness xem báo cáo chạy): dựng/parse vòng tròn, kẹp biên, checksum, loại band, gửi qua mô phỏng. Giới hạn trung thực: gửi qua phần cứng thật chỉ kiểm chứng được khi có thiết bị thật (endpoint/baud/report phụ thuộc thiết bị); nghe thật và nút kết nối trên trình duyệt thật vẫn cần bấm trên trình duyệt thật (giới hạn headless cũ, không đổi).</li>
+          <li><b>Spectrogram / RTA 1/24-octave thời gian thực (Nhóm 4 v2) — ĐÃ XONG (2026-10-26)</b> — phổ trực tiếp từ analyser của engine (FFT 2048) theo trục tần logarit 20 Hz – 20 kHz; Spectrogram cuộn trái 1 cột/khung, màu theo dB −90…0; RTA vẽ 239 band 1/24-octave bằng trung bình công suất tuyến tính trong band rồi đổi ra dB; chỉ vẽ khi bật, tắt là dừng vòng vẽ. Kiểm chứng trên đúng code đã giao (harness xem báo cáo chạy): số band/tỉ lệ band, trung bình band, chuẩn hoá dB, trục tần logarit, vẽ một khung Spectrogram và một khung RTA qua canvas stub. Giới hạn trung thực: độ phân giải tần thực tế bị giới hạn bởi FFT 2048 (bin ≈ 23 Hz ở 48 kHz) nên band 1/24-octave ở tần thấp gộp nhiều band trên cùng vài bin; đây là hiển thị phổ trực tiếp, không phải phép đo đã hiệu chuẩn; xem thật vẫn cần bấm trên trình duyệt thật (giới hạn headless cũ, không đổi).</li>
+          <li><b>Tách kênh Left/Right độc lập (Nhóm 4 v2) — ĐÃ XONG (2026-10-26)</b> — mặc định Liên kết (một bộ band cho cả hai kênh, hành vi cũ); khi tách, kênh L giữ bộ band hiện tại, kênh R là bản sao độc lập, chuyển kênh chỉ đổi con trỏ bands nên toàn bộ UI/graph/preset/solver cũ đều làm việc với bộ đang xem; pushCoeffs gửi cả hai bộ xuống worklet (coeffs = L, coeffsR = R), worklet áp dụng theo kênh ở tầng IIR (kể cả nội suy hệ số mượt theo block); Dynamic EQ dùng cùng cấu hình theo band nhưng gain/Q/tần số theo từng kênh. Về Liên kết lấy bộ đang xem làm bộ chung. Kiểm chứng trên đúng code đã giao (harness xem báo cáo chạy): worklet stereo với L boost +6 dB tại 1 kHz và R phẳng cho tỉ lệ L/R ≈ 2,0, chế độ liên kết cho hai kênh bằng nhau, sao chép bộ độc lập, hệ số identity. Giới hạn trung thực: tách kênh chỉ áp dụng ở chế độ IIR — chế độ FIR dùng một bộ taps chung nên chuyển FIR và đổi số band bị chặn khi đang tách (ghi rõ trong app); bộ kênh còn lại chỉ giữ trong phiên làm việc (tải lại trang sẽ về Liên kết với bộ đã lưu theo cơ chế lưu trạng thái cũ); nghe thật qua worklet vẫn cần bấm trên trình duyệt thật (giới hạn headless cũ, không đổi).</li>
+          <li><b>Tách kênh Mid/Side độc lập (Nhóm 4) — ĐÃ XONG (2026-11-06)</b> — chế độ kênh 3 nấc loại trừ nhau: Liên kết (một bộ band cho cả hai kênh, hành vi cũ) / tách L/R / tách M/S; khi tách M/S, kênh Mid giữ bộ band hiện tại, kênh Side là bản sao độc lập, chuyển kênh chỉ đổi con trỏ bands nên toàn bộ UI/graph/preset/solver cũ đều làm việc với bộ đang xem; pushCoeffs gửi cả hai bộ xuống worklet (coeffs = Mid, coeffsR = Side) và pushConfig gửi msOn=true, worklet mã hoá L/R thành M/S trước tầng IIR (M=(L+R)/2, S=(L−R)/2) rồi giải mã lại thành L/R sau tầng lọc, trước psycho/crossfeed/limiter; Dynamic EQ dùng cùng cấu hình theo band nhưng gain/Q/tần số theo từng kênh (Mid = kênh L, Side = kênh R của detector, detector vẫn đọc mono L/R). Về Liên kết lấy bộ đang xem làm bộ chung. Solver giữ nguyên stereo (không có chuẩn target tai nghe dạng Mid/Side), tách kênh chỉ copy bộ hiện tại làm điểm xuất phát. Giới hạn trung thực: tách kênh chỉ áp dụng ở chế độ IIR — chế độ FIR dùng một bộ taps chung nên chuyển FIR và đổi số band bị chặn khi đang tách (ghi rõ trong app); bộ kênh còn lại chỉ giữ trong phiên làm việc (tải lại trang sẽ về Liên kết với bộ đã lưu theo cơ chế lưu trạng thái cũ); preset/xuất file vẫn theo bộ đang xem (stereo); nghe thật qua worklet vẫn cần bấm trên trình duyệt thật (giới hạn headless cũ, không đổi).</li>
+          <li><b>Nhập preset Equalizer APO (.txt) — ĐÃ XONG (2026-11-06)</b> — ô nhập preset nay nhận cả file APO (.txt: Preamp + Filter PK/LSC/HSC, kể cả file do chính app xuất, preset AutoEq và Qudelix — AutoEq viết LS/HS thay cho LSC/HSC, Peace viết PK/LS/HS); nhận dạng theo nội dung file nên không nhầm với JSON; band OFF và band hỏng (kiểu lạ, số không hữu hạn) bị bỏ qua có báo số lượng, band vượt quá số band engine bị bỏ, preamp trong file (nếu có) áp làm preamp thủ công (đã kẹp theo khoảng slider), target/psycho và chế độ engine giữ nguyên; các band còn lại giữ nguyên như khi nhập preset JSON. Giới hạn: chỉ nhập parametric (dòng GraphicEQ: không nhập được); nghe thật vẫn cần bấm trên trình duyệt thật.</li>
+          <li><b>IndexedDB + Service Worker (PWA) cho kho tai nghe (Nhóm 5 v2) — ĐÃ XONG (2026-10-26)</b> — kho tai nghe chia chunk 200 mục → ghi IndexedDB (store meta + chunks) → đọc lại → khôi phục đúng tuyệt đối, đối chiếu chữ ký (số lượng + tên đầu/cuối) với kho nhúng; cache tự kiểm tra và tự lưu lại khi mở app, nút lưu/kiểm tra/xoá thủ công; sw.js và manifest.json được sinh thật từ code (cache-first, cache web-autoeq-v1) và tải xuống để triển khai qua https — đăng ký SW chỉ thử khi mở qua http(s), file:// và xem trước Drive được báo rõ là không đăng ký được; manifest chưa có icon nên chưa đủ điều kiện đề xuất cài đặt. HẠN CHẾ: tai nghe import bằng file trong phiên chưa được lưu vào cache này; đường nạp kho hiện tại không đổi và không chờ IndexedDB nên danh sách Bước 1 không bị ảnh hưởng.</li>
+          <li><b>Xuất Roon / CamillaDSP / Qudelix-5K (Nhóm 5 v2) — ĐÃ XONG (2026-10-26)</b> — CamillaDSP: file .yml đúng cấu trúc filters (Biquad Peaking/Lowshelf/Highshelf + Gain pre-amp) + pipeline hai kênh (chỉ chứa filters + pipeline, mục devices là của riêng hệ thống người dùng); Qudelix-5K: dòng Filter/Preamp dạng APO (dạng giá trị app Qudelix nhận nhập tay, vì app không có định dạng file preset nhập trực tiếp), cắt ở 10 band kèm cảnh báo khi nguồn &gt; 10 band; Roon: không dùng preset text (Roon không có định dạng preset nhập được) mà xuất IR Convolution Minimum Phase thật theo sample rate/taps đang chọn để nạp làm Convolution filter trong Roon DSP. WAV IR 44.1/48/96 kHz đã có sẵn từ trước (mục chọn sample rate + nút IR), không làm lại.</li>
+          <li><b>Xuất EasyEffects + Pro-Q và chia sẻ URL (v2) — ĐÃ XONG (2026-10-26)</b> — EasyEffects: file .json đúng cấu trúc preset thật (output → equalizer#0 → left/right bandN với frequency/gain/mode APO (DR)/mute/q/slope x1/solo/type Bell/Lo-shelf/Hi-shelf/Off/width 4.0, input-gain = pre-amp, num-bands, plugins_order); tên file mang tên tai nghe (preset EasyEffects không có trường metadata). Pro-Q: KHÔNG phải file .ffp gốc — định dạng .ffp là nhị phân độc quyền của FabFilter, không có đặc tả text công khai nên không sinh được file .ffp kiểm chứng trong trình duyệt; file .txt là bảng band để nhập tay vào Pro-Q (Bell/Low Shelf/High Shelf, Freq/Gain/Q, Output Gain = pre-amp, Pro-Q hỗ trợ tới 24 band nên 10/20 band đều vừa). Chia sẻ URL: trạng thái EQ chính (tai nghe, target, tilt/bass/ear, bảo toàn đặc tính, số band solver, band 10/20, mode, pre-amp, limiter, âm lượng, loudness) mã hoá compact vào tham số ?waeq=; mở link khôi phục đúng trạng thái (kể cả 20 band), localStorage cũ không ghi đè khi mở trang; link không mang notch/crossfeed/Dynamic EQ/điểm chấm mù. Mã QR tự chứa trong file (byte mode, EC level L, version 1–20, không cần mạng) vẽ đúng link; nút sao chép link; link + QR tự làm mới sau khi Chế độ Tự Động chạy solver mới nếu đã tạo trước đó. Kiểm chứng trên đúng code đã giao (xem báo cáo chạy): EasyEffects parse khớp band/pre-amp, Pro-Q đủ band + cảnh báo, URL encode → decode giống hệt, QR giải mã ngược qua syndrome Reed-Solomon.</li>
+          <li><b>Nạp HRTF/SOFA + binaural bằng convolution HRIR (v2) — ĐÃ XONG (2026-10-26)</b> — Nạp thật file HRTF của người dùng, không bịa dữ liệu: JSON {sampleRate?, directions:[{azimuth, elevation, left, right}]} (nạp thay toàn bộ) và WAV stereo (mỗi file thêm một hướng, kênh trái/phải = HRIR trái/phải, khác rate resample tuyến tính); chọn hướng gần nhất theo khoảng cách góc trên mặt cầu (muốn 25° → 30°, lệch 5°); xử lý binaural thật bằng 2 ConvolverNode sau masterGain với nguồn mono downmix (L+R)/2, HRIR giữ biên độ gốc chỉ giảm chung khi đỉnh cặp vượt 1.0; tự chọn hướng gần phía trước nhất khi nạp bộ mới, bật/tắt bấm tay; bộ HRTF chỉ sống trong phiên. SOFA HDF5 GIẢI MÃ THẬT từ 2026-10-28 (decoder HDF5 superblock v0 trong file đơn: object header v1 + continuation lồng nhau, B-tree v1/SNOD/local heap, dataspace/datatype/layout v3 contiguous, int/float IEEE có kiểm tra properties; đọc Data.IR, Data.SamplingRate, SourcePosition hệ spherical + cộng Data.Delay vào đầu HRIR; biến thể ngoài phạm vi — nén gzip/filter, chunked, superblock v2/v3, sai chữ ký, file cắt ngắn, lệch số hướng, receiver ≠ 2 — bị từ chối kèm lý do). Kiểm chứng trên đúng code đã giao với file thật do h5py ghi (fixture 3 hướng khớp tuyệt đối, f32/f16/int/BE khớp, delay cộng đúng, 7 trường hợp từ chối đúng lý do; hàng psV8 mới giải mã fixture h5py nhúng sẵn trong trang) và kiểm chứng cũ: JSON 3 hướng, WAV 16-bit, chập và resample/peak-scale đều PASS; hàng kiểm chứng psV8 mới trong panel Prompt 3 + thu thập QA Giai đoạn 6; worklet/solver/limiter không động tới nên các mốc DSP cũ giữ nguyên. Giới hạn trung thực: graph ConvolverNode và nghe binaural thật vẫn cần bấm trên trình duyệt thật (giới hạn headless cũ, không đổi); analyser vẫn đo tín hiệu trước binaural.</li>
+          <li><b>WASM + SIMD cho đáp tuyến biquad (v2) — ĐÃ XONG (2026-10-26)</b> — Kernel WASM 397 byte nhúng base64 trong chính file HTML (không file ngoài): resp_simd tính độ lớn tuyến tính của một biquad trên lưới tần số bằng SIMD f32x4 (4 tần số/lần), đúng công thức biquadMagDb (trừ bước đổi dB do JS làm giống hệt hai đường); cos/sin tính trước bằng JS và cache theo (N, fs). Tích hợp thật vào gridTotalDb (đáp tuyến hiển thị + quét pre-amp; solver không dùng hàm này nên mốc solver giữ nguyên tuyệt đối) với đường JS (f64) dự phòng bắt buộc: WASM không khả dụng, lỗi khởi tạo, hoặc tự kiểm vượt ngưỡng 0,05 dB thì tự dùng JS. Số đo thật trên cùng harness (lưới 20 band, N=220, Node): JS 6,62 ms/lưới, WASM 1,62 ms/lưới, nhanh hơn 4,09×; lệch tối đa 0,047 dB trên fixture 20 band hỗn hợp (vùng skirt tần thấp nơi tử/mẫu biquad đều ~1e-5 do triệt tiêu), 0,0025 dB trên fixture giống mẫu thật, 0,00009 dB band đơn +6 dB; pre-amp từ cực đại lưới lệch tối đa 0,00031 dB (hiển thị 2 chữ số không đổi). Hàng kiểm chứng wasmV1 mới trong panel Prompt 1 + thu thập QA Giai đoạn 6; nút "Đo hiệu năng" trong panel WASM đo lại trên máy người dùng. Giới hạn trung thực: số tốc độ là số Node, trình duyệt thật sẽ khác và được nút đo lại đo trực tiếp; worklet realtime vẫn chạy JS (WASM này chỉ cho đáp tuyến lưới, chưa phải worklet realtime).</li>
+        <li><b>Đồng hồ liều nghe trong tuần — ĐÃ XONG (2026-10-28, Idea người dùng duyệt, sửa trực tiếp ngoài vòng lặp giờ)</b> — panel “Liều nghe trong tuần” ngay dưới Chế độ Tự Động Toàn Diện: liều % = Σ giờ(L) × 2^((L−80)/3) ÷ 40 giờ × 100 (mốc so sánh tuần 80 dB / 40 giờ, trao đổi 3 dB), mức L chỉ từ ước lượng mức nghe theo thanh âm lượng (autoVolToListen — ước lượng, không phải SPL thật; không phải đánh giá y tế), chỉ cộng khi đang phát thật (isPlaying), lưu localStorage theo tuần ISO (webAutoEq.dose.v1) và tự về 0 khi sang tuần mới, KHÔNG ghi nội dung âm thanh. Giảm nhẹ tuyến tính từ 80% mốc tới tối đa −3 dB ở 100% qua master gain, không bao giờ dừng phát; chỉnh thanh âm lượng bằng tay huỷ ngay giảm nhẹ (cờ ghi đè) và giữ mức của người dùng cho tới khi bấm bật lại hoặc sang tuần mới. Xem trước mô phỏng an toàn (mức × giờ) chạy hoàn toàn bằng số, ghi rõ không phải nghe thật. Tự kiểm doseSelfCheck + hàng QA Suite riêng; mốc DSP cũ giữ nguyên.</li>
+          </ol>
+      </div>
+
+      <p class="note" style="margin-top:16px">Web AutoEQ — đã hoàn thành cả 6/6 giai đoạn: DSP Core · AutoEQ &amp; Target Curve · Psychoacoustics · Studio UI 60fps &amp; Blind A/B/X · Database &amp; Universal Export · QA Suite &amp; tổng hợp cuối. Backlog v2: 26/26 mục đã hoàn thành sau Chặng 3 (lộ trình ghi 25 — danh sách thực tế có 26 mục vì mục WASM+SIMD được thêm sau; mục 5 nay có cả kernel SIMD f32 đáp tuyến và nhân f64 cascade bit-accurate).</p>
+    </div>
+
+<script src="js/01-engine.js"></script>
+
+<script src="js/02-ui-core.js"></script>
+<script src="js/03-solver.js"></script>
+<script src="js/04-psychoacoustics.js"></script>
+<script src="js/05-studio-ui.js"></script>
+<script src="js/06-data-db.js"></script>
+<script src="js/07-database.js"></script>
+<script src="js/08-qa.js"></script>
+
+<script src="js/09-auto.js"></script>
+<!-- ======= Chặng 4: Quick EQ Bar 1 chạm + Smart Auto-Pilot v2 (khối tự chứa, không xoá id nào) ======= -->
+<div class="panel" id="quickEqHub" style="margin-top:14px">
+  <h2>EQ nhanh 1 chạm — Quick EQ Bar <span class="r">Chặng 4 · Smart Auto-Pilot v2</span></h2>
+  <div style="display:flex;gap:6px;flex-wrap:wrap">
+    <button class="btn small tog on" id="uxStyleAuto">Tự động</button>
+    <button class="btn small tog" id="uxStyleWarm">Ấm</button>
+    <button class="btn small tog" id="uxStyleVocal">Giọng hát</button>
+    <button class="btn small tog" id="uxStylePreserve">Giữ gốc</button>
+    <button class="btn small" id="uxExportApo">Xuất APO 1 chạm</button>
+    <button class="btn small" id="uxCompactToggle">Giao diện tinh gọn: Bật</button>
+  </div>
+  <p class="note" id="uxPilotStatus" style="margin:8px 0 0">Smart Auto-Pilot v2: 12 tự động hoá — số band, solver, pre-amp, loudness, Dynamic EQ, limiter, khôi phục trạng thái, chọn target, guard group-delay, chọn crossfeed, phong cách âm thanh, xuất APO 1 chạm. Bấm một phong cách là EQ chạy ngay (khi Chế độ Tự Động đang bật).</p>
+</div>
+
+<script src="js/10-autopilot.js"></script>
+
+<script src="js/11-upgrades.js"></script>
+
+
+
+
+
+
+
+
+
+
+<script src="js/12-dock-layout.js"></script>
+<script src="js/13-eq-max.js"></script>
+
+
+</body>
+</html>
