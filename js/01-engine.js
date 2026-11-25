@@ -557,10 +557,12 @@ function gridTotalDb(N, fs){
             _fbCw = new Float64Array(N + 1); _fbSw = new Float64Array(N + 1); _fbCw2 = new Float64Array(N + 1); _fbSw2 = new Float64Array(N + 1);
             for (k = 0; k <= N; k++){ var _tw = 2*Math.PI*_gf[k]/fs; _fbCw[k] = Math.cos(_tw); _fbSw[k] = Math.sin(_tw); _fbCw2[k] = 2*_fbCw[k]*_fbCw[k] - 1; _fbSw2[k] = 2*_fbSw[k]*_fbCw[k]; }
           }
+          /* (vòng tự động 00:24, hướng B — ÁP DỤNG, vá code): hoist 5 hệ số cc ra biến cục bộ MỘT lần trước vòng lưới fallback trong gridTotalDb — trước đây mỗi điểm lưới đọc lại cc.b0..cc.a2 qua thuộc tính object (cùng lớp vá qaCascade 18:24); nay đọc đúng MỘT lần/band rồi vòng trong dùng số thuần _cb0.._ca2. Cùng toán hạng/thứ tự biểu thức nr/ni/dr/di + phép log + kẹp nên mảng đáp tuyến từng band GIỐNG TỪNG BIT theo cấu trúc; thứ tự xử lý band, thời điểm dựng bảng lượng giác và gán c.arrs[i]/c.dirty giữ nguyên (vòng này chỉ chạy khi cc truthy phía trên; hệ số đọc một lần trước vòng k, không có tác dụng phụ quan sát được với object hệ số thuần từ rbjCoeffs). Lab Node trên hàm thật trích verbatim (hidden_files/run_20261126_0024_B/lab/, 2 lần bench độc lập): parity 52/52 kịch bản GIỐNG TỪNG BIT (Object.is trên total + snapshot cache; gồm 0/1/10/20 band × N -5/-1/0/1/7/220/240/880/960 × fs 44100/48000/96000/22050/0/NaN/Infinity/âm, band tắt/gain 0, coeff null/undefined/thiếu trường/NaN/Infinity/-0/subnormal/1e308, band null/undefined ném đúng TypeError, fuzz 30); tốc độ paired-median xen kẽ 15 vòng trên gridTotalDb fallback (WASM tắt, 20 band N=880): lần 1 2,0622x thắng 15/15, lần 2 2,0851x thắng 15/15 — cải thiện ổn định. Không chạm solver/WASM/FIR/QA logic; aeV3 không đổi theo cấu trúc (không đo lại; gần nhất 468/482 ms ngày 2026-11-11). QA trình duyệt đầy đủ chưa chạy được trên VM (headless Chrome bị chặn Hatch WebGL). Lượt kế: nhóm C. */
+          var _cb0 = cc.b0, _cb1 = cc.b1, _cb2 = cc.b2, _ca1 = cc.a1, _ca2 = cc.a2;
           for (k = 0; k <= N; k++){
             var _cw = _fbCw[k], _sw = _fbSw[k], _cw2 = _fbCw2[k], _sw2 = _fbSw2[k];
-            var _nr = cc.b0 + cc.b1*_cw + cc.b2*_cw2, _ni = -(cc.b1*_sw + cc.b2*_sw2);
-            var _dr = 1 + cc.a1*_cw + cc.a2*_cw2, _di = -(cc.a1*_sw + cc.a2*_sw2);
+            var _nr = _cb0 + _cb1*_cw + _cb2*_cw2, _ni = -(_cb1*_sw + _cb2*_sw2);
+            var _dr = 1 + _ca1*_cw + _ca2*_cw2, _di = -(_ca1*_sw + _ca2*_sw2);
             arr[k] = 4.342944819032518*Math.log(Math.max(1e-18,(_nr*_nr+_ni*_ni)/Math.max(1e-24,(_dr*_dr+_di*_di))));
           }
         }
