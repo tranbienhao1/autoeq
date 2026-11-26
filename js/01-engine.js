@@ -596,11 +596,14 @@ function gridTotalDb(N, fs){
       /* (vòng tự động 08:49, hướng B — ÁP DỤNG, vá code): inline psycho vào gridTotalDb — psychoCoeffs(fs) gọi MỘT lần trước vòng lưới thay vì mỗi điểm (psychoDbAt gọi lại mỗi lần, dựng chuỗi khóa + join mỗi điểm dù cache trúng); thân vòng sao chép nguyên văn psychoDbAt (lượng giác lười ở section hoạt động đầu tiên, biểu thức nr/ni/dr/di + log + kẹp giữ nguyên từng toán hạng/thứ tự, cộng dồn s=0 theo section 0..n-1) nên pa[k] giống từng bit. Guard typeof psychoDbAt giữ nguyên để hành vi khi thiếu khối Psychoacoustics không đổi. */
       var _pcs = psychoCoeffs(fs);
       var _pt = gridTrigTable(N, fs, _gf2);
+      /* (vòng tự động 04:54, hướng B — ÁP DỤNG, vá code): lọc sẵn section psycho đang hoạt động (_act) MỘT lần trước vòng lưới thay vì kiểm tra !== PSY_ID tại từng điểm k × từng section — _pcs cố định trong suốt phép tính nên danh sách lọc giữ nguyên thứ tự section và thứ tự cộng _s (0 + section hoạt động theo thứ tự gốc), đọc lượng giác ở section hoạt động đầu tiên giữ nguyên, mọi double của pa/total GIỐNG TỪNG BIT theo cấu trúc (kể cả không section nào hoạt động: _s=0); cùng mẫu vá psyAct trong buildFirTaps áp sang vòng psycho của gridTotalDb. Lab Node trên hàm thật trích verbatim (hidden_files/run_20261127_0454_B/lab/, 2 lần bench độc lập): parity 66/66 kịch bản GIỐNG TỪNG BIT cả 2 lần (Object.is trên total + đồng nhất đối tượng mảng khi trúng cache; gồm N 0/1/7/220/240/880/960 × fs 44100/48000/96000/22050/0/NaN, 0/1/10/20 band, band tắt/gain 0, psycho all-identity/mixed/full/empty/null-coeffs, đổi psyKey/fs/N, lặp lại cache-hit, fuzz 30); tốc độ paired-median xen kẽ 15 vòng trên đường psycho-recompute (đổi psyKey mỗi lần gọi, 10 band N=880): lần 1 1,6634x thắng 15/15, lần 2 1,6363x thắng 14/15 (control old-vs-old 1,0025x) — cải thiện ổn định. Không chạm solver/WASM/FIR/QA logic; aeV3 không đổi theo cấu trúc (không đo lại; gần nhất 468/482 ms ngày 2026-11-11). QA trình duyệt đầy đủ chưa chạy được trên VM (headless Chrome bị chặn Hatch WebGL). Lượt kế: nhóm C. */
+      var _act = [];
+      for (var _ai = 0; _ai < _pcs.length; _ai++) if (_pcs[_ai] !== PSY_ID) _act.push(_pcs[_ai]);
       for (k = 0; k <= N; k++){
         var _s = 0, _cw, _sw, _cw2, _sw2, _td = false, _pi;
-        for (_pi = 0; _pi < _pcs.length; _pi++) if (_pcs[_pi] !== PSY_ID){
+        for (_pi = 0; _pi < _act.length; _pi++){
           if (!_td){ _cw = _pt.cw[k]; _sw = _pt.sw[k]; _cw2 = _pt.cw2[k]; _sw2 = _pt.sw2[k]; _td = true; }
-          var _c = _pcs[_pi];
+          var _c = _act[_pi];
           var _nr = _c.b0 + _c.b1*_cw + _c.b2*_cw2, _ni = -(_c.b1*_sw + _c.b2*_sw2);
           var _dr = 1 + _c.a1*_cw + _c.a2*_cw2, _di = -(_c.a1*_sw + _c.a2*_sw2);
           _s += 4.342944819032518*Math.log(Math.max(1e-18,(_nr*_nr+_ni*_ni)/Math.max(1e-24,(_dr*_dr+_di*_di))));
