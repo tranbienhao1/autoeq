@@ -865,9 +865,11 @@ function aeSolveSingle(freqs, errDb, weights, nBands, relLambda, nmPasses, regCo
     }
     var bi2=0; for (var vi=1;vi<4;vi++) if (vals[vi]<vals[bi2]) bi2=vi;
     var best=toBand(simp[bi2]);
-    if (objective(bi, best) <= objective(bi, b)+1e-9){ bands[bi]=best; curves[bi]=aeBandCurve(best, freqs, fsv); }
-    /* cập nhật tot */
-    tot=new Array(n).fill(0); curves.forEach(function(cv){ for (var k3=0;k3<n;k3++) tot[k3]+=cv[k3]; });
+    /* (vong tu dong 02:24, huong A - AP DUNG, va code): bo tinh lai tot khi band bi tu choi trong nmBand cua aeSolveSingle - truoc day tot duoc tinh lai (cap phat mang n diem + m x n phep cong) sau MOI lan goi nmBand du band co duoc chap nhan hay khong; khi band bi tu choi, curves khong doi va tot dang co da bang tong cong don curves theo dung thu tu band 0..m-1 tu fill(0) (bat bien duoc duy tri tu khoi tao tot/curves o dau ham va moi lan chap nhan deu tinh lai tot) nen viec tinh lai cho dung gia tri tung bit - chi ton cong thua. Nay chi tinh lai tot khi band duoc chap nhan (curves[bi] vua doi); khi tu choi giu nguyen tot (cung mang, cung tung double). Hai lan goi objective giu nguyen thu tu/so lan nhu cu nen khong doi quy dao NM. Lab Node tren ham that trich verbatim, file thuong noi lien (extract.py + driver.js trong hidden_files/run_20261127_0224_A/lab/, 2 lan chay doc lap): parity 81/81 ca GIONG TUNG BIT (Object.is sau tren bands/total/fixedPoint; gom 10/20 band lanh/am, contBands, nullMid/nullHi, zeroall/NaN/neg weights, err NaN/Infinity/cuc doan, fs 44100/96000/0/NaN/22050, anchor/stepScale, n=0/1/3/9, nBands 2/3, 30 fuzz) + determinism 12/12; toc do paired-median xen ke 15 vong tren toan aeSolveSingle: lan 1 cold10 1,1009x (12/15), warm10 0,9748x (7/15), warm20 0,9719x (7/15); lan 2 cold10 1,0407x (12/15), warm10 1,0365x (14/15), warm20 1,0514x (13/15) - median >=1 o 5/6 do, thang da so moi workload. Khong cham solver/WASM/FIR/QA logic; aeV3 khong doi theo cau truc (khong do lai; gan nhat 468/482 ms ngay 2026-11-11). Bo dem lab-only van 12. Luot ke: nhom B. */
+    var _acc = objective(bi, best) <= objective(bi, b)+1e-9;
+    if (_acc){ bands[bi]=best; curves[bi]=aeBandCurve(best, freqs, fsv);
+      /* cập nhật tot */
+      tot=new Array(n).fill(0); curves.forEach(function(cv){ for (var k3=0;k3<n;k3++) tot[k3]+=cv[k3]; }); }
   }
   /* Vòng NM chính + vòng phụ thích ứng (nâng cấp 2026-10-31): chạy đủ
      nmPasses vòng như trước, riêng đường <= 10 band được chạy tiếp tối đa
