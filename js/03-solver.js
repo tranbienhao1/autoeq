@@ -3655,6 +3655,7 @@ $("btnAutoEq").addEventListener("click", function(){
     rows += "<tr><td>Band "+(k+1)+" → #"+(idx[k]+1)+"</td><td>"+AE_TYPLBL[b.type]+"</td><td>"+fmtFreq(b.freq)+"</td><td>"+fmtDb(b.gain)+" dB</td><td>"+b.q.toFixed(2)+"</td></tr>";
   });
   $("aeBandTable").innerHTML = rows;
+  AE.lastIdx = idx; /* luu anh xa Band->Engine de bang dong bo voi band live khi keo/chinh tay (02-ui-core.js syncAeBandTable) */
   var wl = $("aeWarn");
   if (out.warnings.length){
     wl.innerHTML = out.warnings.map(function(w){ return "<li>"+w.replace(/</g,"&lt;")+"</li>"; }).join("");

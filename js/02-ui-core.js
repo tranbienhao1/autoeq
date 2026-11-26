@@ -28,7 +28,33 @@ function updateAll(pushAudio){
   refreshDerived();
   drawGraph();
   syncBandUI();
+  syncAeBandTable();
   if (pushAudio){ pushCoeffs(); pushFir(); pushConfig(); updateLatency(); }
+}
+/* Dong bo bang ket qua AutoEQ (aeBandTable) voi band live: bang chi duoc viet
+   1 lan luc solve, nen sau khi keo node tren do thi / chinh tay band, bang van
+   giu gia tri solver cu trong khi dai band + do thi da doi. Dung lai hang bang
+   tu bands hien tai theo anh xa Band->Engine da luu luc solve (AE.lastIdx);
+   doi so band 10<->20 (do dai khac nhau) thi dung anh xa dong nhat. Chi ghi
+   DOM khi chu ky gia tri doi (keo 1 band khong viet lai ca bang moi khung hinh
+   neu khong doi). Khong co ket qua solve nao (AE.lastIdx chua co) thi giu nguyen
+   placeholder. */
+var AE_BAND_SIG = "";
+function syncAeBandTable(){
+  var t = $("aeBandTable");
+  if (!t || !AE.lastIdx) return;
+  var idx = AE.lastIdx, sameLen = (bands.length === idx.length);
+  var rows = '<tr><th>Band → Engine</th><th>Loại</th><th>Fc</th><th>Gain</th><th>Q</th></tr>';
+  var sig = bands.length+"|";
+  for (var k=0;k<bands.length;k++){
+    var b = bands[k];
+    var ek = sameLen ? idx[k] : k;
+    rows += "<tr><td>Band "+(k+1)+" → #"+(ek+1)+"</td><td>"+AE_TYPLBL[b.type]+"</td><td>"+fmtFreq(b.freq)+"</td><td>"+fmtDb(b.gain)+" dB</td><td>"+b.q.toFixed(2)+"</td></tr>";
+    sig += b.type+","+b.freq+","+b.gain+","+b.q+";";
+  }
+  if (sig === AE_BAND_SIG) return;
+  AE_BAND_SIG = sig;
+  t.innerHTML = rows;
 }
 /* --- Tối ưu độ mượt khi kéo slider (2026-10-31): các sự kiện "input" của
    slider gain/Q bắn ra nhiều lần trong cùng một khung hình, mỗi lần lại chạy
