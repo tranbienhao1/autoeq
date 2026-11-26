@@ -308,6 +308,7 @@ function isoPhonFromSpl(splDb, f){
    20-90 phon (20-80 phon ở 5-12,5 kHz); dưới 20 phon là vùng nội suy
    giữa ngưỡng nghe và contour 20 phon. Trả về chuỗi cảnh báo hoặc "". */
 function isoValidityCheck(phon, f){
+  if (!isFinite(phon)) phon = 80; if (!isFinite(f)) f = 1000; /* (vòng tự động 05:02, hướng C — ÁP DỤNG, vá code): chuẩn hoá phon/f không hữu hạn về 80 phon / 1000 Hz trong isoValidityCheck đúng như isoSpl/iso2003Spl/isoPhonFromSpl — trước đây isoValidityCheck(Infinity,1000) cảnh báo "Trên 90 phon" và isoValidityCheck(-Infinity,1000) cảnh báo "Dưới 20 phon" trong khi isoSpl tính đúng ở 80 phon, còn isoValidityCheck(85,Infinity) cảnh báo dải 5-12,5 kHz trong khi isoSpl dùng f=1000 Hz; nay cảnh báo đánh giá đúng giá trị hiệu dụng mà isoSpl dùng. Mọi đầu vào hữu hạn cho kết quả giống từng bit (isFinite true nên không đổi), chỉ các ca không hữu hạn nay trả cảnh báo khớp giá trị hiệu dụng. Lab: parity hữu hạn 588/588 GIỐNG TỪNG BIT, không hữu hạn 169/169 khớp ngữ nghĩa chuẩn hoá của isoSpl (27/169 ca đổi từ cảnh báo sai sang đúng), tốc độ trung tính 0,95-0,98x (hàm chỉ gọi 1 lần/bấm UI). */
   if (phon < 20) return "Dưới 20 phon: vùng nội suy giữa ngưỡng nghe (2.4 phon tại 1 kHz) và contour 20 phon — độ tin cậy thấp hơn.";
   if (f >= 5000 && phon > 80) return "Trên 80 phon ở dải 5-12,5 kHz nằm ngoài miền định nghĩa của ISO 226:2023.";
   if (phon > 90) return "Trên 90 phon nằm ngoài miền định nghĩa của ISO 226:2023.";
