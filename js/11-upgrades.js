@@ -1719,12 +1719,23 @@ function h13NmPolish(p0, targetPts){
   var steps = new Array(H13_KEYS.length); for (var si = 0; si < H13_KEYS.length; si++){ var sk = H13_KEYS[si]; steps[si] = sk.indexOf("Hz") >= 0 ? Math.log10(1.10) : (sk.indexOf("Q") >= 0 || sk.indexOf("q") === 0) ? 0.15 : 0.7; }
   var simplex = [u0.slice()], vals = [obj(u0)], evals = 1;
   for (var i = 0; i < n; i++){ var u = u0.slice(); u[i] += steps[i]; simplex.push(u); vals.push(obj(u)); evals++; }
+  /* (vong tu dong 05:16, huong A - AP DUNG, va code): thay sortS cua h13NmPolish bang insertion sort tai cho - truoc day moi vong NM cap phat mang idx + goi Array.sort voi comparator closure roi cap phat 2 mang _ns/_nv de sap xep lai simplex/vals (14 phan tu); nay sap xep truc tiep tren simplex/vals bang insertion sort on dinh (dich khi vals[j] > key, nghiem ngat nen giu thu tu cac phan tu bang nhau nhu stable sort cua V8). Duong vals chua NaN (comparator cua ban cu tra NaN->0 khong bac cau, V8 TimSort cho ket qua khac insertion sort) roi ve dung vong sort cu nguyen ven nen GIONG TUNG BIT voi moi dau vao huu han va ca khi co NaN; voi vals huu han, dau cua (vals[a]-vals[b]) luon khop dau so sanh truc tiep (a-b==0 chi khi a==b voi so double huu han) nen thu tu khop tung bit. Lab Node tren ham that trich verbatim (extract.py + harness.js + bench.js trong hidden_files/run_20261127_0516_A/lab/, 2 lan chay doc lap): parity sortS 47008/47008 GIONG TUNG BIT (Object.is tren thu tu hang + vals; gom NaN/Infinity/-0/subnormal/1e308, day bang nhau, gan sap xep, 20000 fuzz ngau nhien + 20000 fuzz nhieu bang nhau + 5000 fuzz gan sap xep) + tich hop h13NmPolish 12/12 GIONG HET (13 tham so Object.is; 3 target x 4 diem khoi tao); toc do khoi sortS paired-median xen ke 15 vong: 12,71x/14,23x thang 15/15 ca 2 lan; toan h13NmPolish trung tinh trong nhieu may chia se (0,9342x/1,0113x) dung ky vong vi sortS chi la phan nho cua thoi gian polish. Khong cham solver/WASM/FIR/QA logic; aeV3 khong doi theo cau truc (khong do lai; gan nhat 468/482 ms ngay 2026-11-11). Bo dem lab-only van 12. Luot ke: nhom B. */
   function sortS(){
-    var idx = new Array(vals.length); for (var sI = 0; sI < vals.length; sI++) idx[sI] = sI;
-    idx.sort(function(a, b){ return vals[a] - vals[b]; });
-    var _ns = new Array(idx.length), _nv = new Array(idx.length);
-    for (var sK = 0; sK < idx.length; sK++){ _ns[sK] = simplex[idx[sK]]; _nv[sK] = vals[idx[sK]]; }
-    simplex = _ns; vals = _nv;
+    var _sNan = false;
+    for (var _sN = 0; _sN < vals.length; _sN++){ if (vals[_sN] !== vals[_sN]){ _sNan = true; break; } }
+    if (_sNan){
+      var idx = new Array(vals.length); for (var sI = 0; sI < vals.length; sI++) idx[sI] = sI;
+      idx.sort(function(a, b){ return vals[a] - vals[b]; });
+      var _ns = new Array(idx.length), _nv = new Array(idx.length);
+      for (var sK = 0; sK < idx.length; sK++){ _ns[sK] = simplex[idx[sK]]; _nv[sK] = vals[idx[sK]]; }
+      simplex = _ns; vals = _nv;
+    } else {
+      for (var _sI = 1; _sI < vals.length; _sI++){
+        var _sRow = simplex[_sI], _sVal = vals[_sI], _sJ = _sI - 1;
+        while (_sJ >= 0 && vals[_sJ] > _sVal){ simplex[_sJ+1] = simplex[_sJ]; vals[_sJ+1] = vals[_sJ]; _sJ--; }
+        simplex[_sJ+1] = _sRow; vals[_sJ+1] = _sVal;
+      }
+    }
   }
   sortS();
   while (evals < 2200){
