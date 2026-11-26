@@ -234,6 +234,8 @@ function dbValidateVals(vals){
    dbExtSelfCheck chỉ dùng bản sao kiểm thử nên không bao giờ lệch
    snapshot số lượng kho mặc định.
    ================================================================ */
+/* (vòng tự động 01:54 nhóm D — ÁP DỤNG, vá code, bản đa file): dbEncodeV trước đây gọi code.toString(36) + kiểm tra độ dài + đệm "0" cho TỪNG giá trị (605.000 lần toString mỗi lần mã hoá kho 5.000 mục × 121 điểm khi import pack/GitHub). Nay bảng tra _dbEncTab[1296] được dựng MỘT lần bằng đúng biểu thức gốc (code.toString(36), đệm "0" khi dài < 2) nên mỗi code cho đúng cùng chuỗi 2 ký tự; vòng mã hoá chỉ còn tra bảng — kiểm tra dải/throw giữ nguyên từng toán hạng và chạy trước khi tra nên hành vi lỗi GIỐNG TỪNG BIT theo cấu trúc. Đối xứng với đường nhanh charCode ở dbDecodeV (07:26 ngày 24/11). Lab (hidden_files/run_20261127_0154_D/lab/, hàm trích verbatim + harness + bench, 2 lần bench độc lập): parity 11.578/11.578 GIỐNG TỪNG BIT (mọi code 0..1295 đơn giá trị, biên/thuộc tính lỗi, mảng thưa, non-array, 200 đường cong 121 điểm, 10.000 fuzz, getter ném lỗi, lặp lại); tốc độ paired-median xen kẽ 15 vòng — lần 1 encode 5.000×121 điểm 3,6663× (thắng 15/15), encode đơn 121 điểm ×20.000 2,8040× (15/15); lần 2 3,6759× (15/15) và 2,7653× (15/15), acc khớp tuyệt đối. Không chạm solver/WASM/FIR/QA logic; aeV3 không đổi theo cấu trúc (không đo lại; gần nhất 468/482 ms ngày 2026-11-11). QA trình duyệt đầy đủ chưa chạy được trên VM (headless Chrome bị chặn Hatch WebGL). Lượt kế: nhóm A. --- */
+var _dbEncTab = null;
 function dbEncodeV(vals){
   /* Codec base36 2 ký tự chỉ biểu diễn được [-60, 69,5] dB ở bước 0,1 dB
      (code = round(v*10+600) phải nằm trong [0, 1295]). Trước 2026-10-27 hàm
@@ -244,13 +246,18 @@ function dbEncodeV(vals){
      caller (đều nằm trong try/catch ở UI import) báo lỗi rõ thay vì nhập
      dữ liệu đã sai lệch. Dữ liệu nhúng sẵn (1600 mục, -59,0..+23,6 dB) và
      mọi fixture self-check đều nằm trong dải nên không đổi hành vi. */
-  var s = "", i, code, s2;
+  var s = "", i, code;
+  if (!_dbEncTab){
+    _dbEncTab = new Array(1296);
+    for (var _ci = 0; _ci < 1296; _ci++){
+      var _cs = _ci.toString(36);
+      _dbEncTab[_ci] = _cs.length < 2 ? "0" + _cs : _cs;
+    }
+  }
   for (i = 0; i < vals.length; i++){
     code = Math.round(vals[i]*10 + 600);
     if (!isFinite(code) || code < 0 || code > 1295) throw new Error("dbEncodeV: giá trị ngoài dải codec [-60, 69,5] dB tại điểm " + i + ": " + vals[i]);
-    s2 = code.toString(36);
-    if (s2.length < 2) s2 = "0" + s2;
-    s += s2;
+    s += _dbEncTab[code];
   }
   return s;
 }
