@@ -5173,7 +5173,8 @@ function loudFitError(gains, listen, ref, fs){
       if (_ft === 0){ _sL = _tL[_fi]; _sR = _tR[_fi]; }
       else if (_ft === 1){ _sL = _tL[_fi+1]; _sR = _tR[_fi+1]; }
       else { _sL = _tL[_fi]*(1-_ft) + _tL[_fi+1]*_ft; _sR = _tR[_fi]*(1-_ft) + _tR[_fi+1]*_ft; }
-      _comp[i] = (_sL - _Lc) - (_sR - _Rc);
+      /* (vòng tự động 01:24, hướng C — ÁP DỤNG, vá code): dùng _Lp/_Rp (đã kẹp + fallback 80 khi không hữu hạn) thay _Lc/_Rc trong phép trừ dựng _comp của loudFitError — bảng _tL/_tR đã tính theo _Lp/_Rp (fallback 80) nhưng phép trừ cũ dùng _Lc/_Rc thô nên listen/ref = NaN/undefined/chuỗi rác cho _comp = NaN và rms = NaN, trong khi isoSpl/isoCompDb chuẩn hoá phon không hữu hạn về 80; nay mọi đầu vào hữu hạn cho _Lp===_Lc và _Rp===_Rc nên kết quả giống từng bit, chỉ các ca trước đây cho NaN nay trả đúng giá trị fallback 80 phon (khớp isoCompDb). */
+      _comp[i] = (_sL - _Lp) - (_sR - _Rp);
     }
     LOUD_FIT_COMP.key = _compKey; LOUD_FIT_COMP.v = _comp;
   }
