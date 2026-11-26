@@ -217,6 +217,7 @@ function bandDbAt(i, freq, fs){ return (bands[i].on && bands[i].gain!==0) ? biqu
    trị biquadMagDb/psychoDbAt cũ — kết quả số học không đổi. */
 var GRID_TOT = {}; /* N -> { fs, keys:[], arrs:[], psyKey, psyArr, total, dirty } */
 var GRID_FREQ_CACHE = {}; /* N -> Float64Array luoi tan so 20*1000^(k/N), bat bien theo N */
+var GRID_TRIG_CACHE = {}; /* (N|fs) -> bang luong giac {cw,sw,cw2,sw2} tren luoi GRID_FREQ_CACHE[N], dung chung cho vong psycho trong gridTotalDb */
 /* (vòng tự động 15:31, hướng B — ÁP DỤNG, vá code): cache lưới tần số GRID_FREQ_CACHE[N] cho đường fallback JS trong gridTotalDb — trước đây mỗi band tính lại 20*Math.pow(1000,k/N) cho mọi điểm lưới (và psycho lặp lại), nay tính MỘT lần/N rồi lưu Float64Array dùng chung cho mọi band/lần gọi; tần số lưu trữ là đúng double của biểu thức gốc nên biquadMagDb/psychoDbAt nhận đúng giá trị từng bit, tổng đáp tuyến không đổi. Chỉ áp cho fallback JS (WASM tắt/lỗi), đường WASM không đổi; aeV3 không đổi theo cấu trúc (không đo lại; gần nhất 468/482 ms ngày 2026-11-11). Lab Node trên hàm thật trích verbatim (verify_grid_patched.js + verify_grid_patched2.js trong hidden_files/run_20261123_1529_B/, 2 lần chạy độc lập): parity 12444/12444 GIỐNG TỪNG BIT (Object.is; N=0,1,7,220,880,960 × fs 44100/48000/96000, band tắt/gain 0, cache hit lần 2) + parity microbench 466452/466452; tốc độ paired-median xen kẽ 31 vòng trên gridTotalDb fallback: lần 1 median 1,1762x thắng 23/31, lần 2 median 1,1826x thắng 25/31; microbench biquadMagDb đơn band median 1,87x thắng 13-14/15. Không chạm solver/WASM/FIR/QA logic. Bộ đếm lab-only vẫn 12. Lượt kế: nhóm C. */
 /* ================================================================
    v2 — WASM + SIMD CHO ĐÁP TUYẾN BIQUAD (dùng trong gridTotalDb)
@@ -518,6 +519,17 @@ if ($("wasmBench")) $("wasmBench").addEventListener("click", function(){
   wasmRefreshPanel();
 });
 
+/* (vòng tự động 02:38, hướng B — ÁP DỤNG, vá code): cache bảng lượng giác lưới cho vòng psycho trong gridTotalDb — trước đây mỗi lần psyKey đổi (kéo loudness/notch, đổi preset) đều tính lại cos/sin cho từng điểm lưới (N+1 điểm × 2 hàm lượng giác) dù bảng chỉ phụ thuộc (N, fs, lưới tần số đã cache); nay dựng MỘT lần vào GRID_TRIG_CACHE (khóa N|fs, reset khi >8 khóa như QA_GD_GRID) rồi đọc bảng trong vòng — cùng biểu thức 2*Math.PI*gf[k]/fs, Math.cos/sin, 2*cw*cw-1, 2*sw*cw nên mọi double của pa[k]/total GIỐNG TỪNG BIT theo cấu trúc (Float64Array lưu đúng double); thứ tự xử lý band/psycho, điều kiện dựng GRID_FREQ_CACHE và gán c.psyArr/c.dirty giữ nguyên. Lab Node trên hàm thật trích verbatim (hidden_files/run_20261127_0238_B/lab/, 2 lần bench độc lập): parity 64/64 kịch bản GIỐNG TỪNG BIT cả 2 lần (Object.is trên total; gồm N 0/1/7/220/240/880/960 × fs 44100/48000/96000/22050/0/NaN/Infinity/âm, psy on/off/bypass/all-identity/NaN, band tắt/gain 0, null band ném đúng TypeError, N=-1/-5, lặp lại cache hit, toggle psyKey, reset cache >8 khóa, fuzz 30); tốc độ paired-median xen kẽ 15 vòng trên đường psy-change (đổi psyKey mỗi lần gọi, 10 band N=880): lần 1 1,0823x thắng 12/15, lần 2 1,1301x thắng 13/15; N=240: 1,0987x/1,1151x thắng 12-14/15; control all-hit trung tính 1,0033x/0,9942x (không hồi quy). Không chạm solver/WASM/FIR/QA logic; aeV3 không đổi theo cấu trúc (không đo lại; gần nhất 468/482 ms ngày 2026-11-11). QA trình duyệt đầy đủ chưa chạy được trên VM (headless Chrome bị chặn Hatch WebGL). Lượt kế: nhóm C. */
+function gridTrigTable(N, fs, gf){
+  var key = N + "|" + fs, t = GRID_TRIG_CACHE[key];
+  if (t) return t;
+  var cw = new Float64Array(N + 1), sw = new Float64Array(N + 1), cw2 = new Float64Array(N + 1), sw2 = new Float64Array(N + 1), k;
+  for (k = 0; k <= N; k++){ var w = 2*Math.PI*gf[k]/fs; cw[k] = Math.cos(w); sw[k] = Math.sin(w); cw2[k] = 2*cw[k]*cw[k] - 1; sw2[k] = 2*sw[k]*cw[k]; }
+  t = { cw: cw, sw: sw, cw2: cw2, sw2: sw2 };
+  if (Object.keys(GRID_TRIG_CACHE).length > 8) GRID_TRIG_CACHE = {};
+  GRID_TRIG_CACHE[key] = t;
+  return t;
+}
 function gridTotalDb(N, fs){
   var c = GRID_TOT[N];
   if (!c || c.fs !== fs){
@@ -583,10 +595,11 @@ function gridTotalDb(N, fs){
       if (!_gf2){ _gf2 = new Float64Array(N + 1); for (k = 0; k <= N; k++) _gf2[k] = 20*Math.pow(1000, k/N); if (Object.keys(GRID_FREQ_CACHE).length > 16) GRID_FREQ_CACHE = {}; GRID_FREQ_CACHE[N] = _gf2; }
       /* (vòng tự động 08:49, hướng B — ÁP DỤNG, vá code): inline psycho vào gridTotalDb — psychoCoeffs(fs) gọi MỘT lần trước vòng lưới thay vì mỗi điểm (psychoDbAt gọi lại mỗi lần, dựng chuỗi khóa + join mỗi điểm dù cache trúng); thân vòng sao chép nguyên văn psychoDbAt (lượng giác lười ở section hoạt động đầu tiên, biểu thức nr/ni/dr/di + log + kẹp giữ nguyên từng toán hạng/thứ tự, cộng dồn s=0 theo section 0..n-1) nên pa[k] giống từng bit. Guard typeof psychoDbAt giữ nguyên để hành vi khi thiếu khối Psychoacoustics không đổi. */
       var _pcs = psychoCoeffs(fs);
+      var _pt = gridTrigTable(N, fs, _gf2);
       for (k = 0; k <= N; k++){
         var _s = 0, _cw, _sw, _cw2, _sw2, _td = false, _pi;
         for (_pi = 0; _pi < _pcs.length; _pi++) if (_pcs[_pi] !== PSY_ID){
-          if (!_td){ var _w = 2*Math.PI*_gf2[k]/fs; _cw = Math.cos(_w); _sw = Math.sin(_w); _cw2 = 2*_cw*_cw - 1; _sw2 = 2*_sw*_cw; _td = true; }
+          if (!_td){ _cw = _pt.cw[k]; _sw = _pt.sw[k]; _cw2 = _pt.cw2[k]; _sw2 = _pt.sw2[k]; _td = true; }
           var _c = _pcs[_pi];
           var _nr = _c.b0 + _c.b1*_cw + _c.b2*_cw2, _ni = -(_c.b1*_sw + _c.b2*_sw2);
           var _dr = 1 + _c.a1*_cw + _c.a2*_cw2, _di = -(_c.a1*_sw + _c.a2*_sw2);
@@ -617,26 +630,9 @@ function computeAutoPre(fs){
      thật tới ~0,009 dB (band test +6 dB/Q1.41 tại 1 kHz: đỉnh lưới 5,9911 dB so với
      đỉnh thật 6,0000 dB) nên pre-amp tính ra thiếu headroom đúng ngần ấy. Lưới 960
      điểm cho đỉnh 5,9997 dB; chi phí không đáng kể vì gridTotalDb cache theo band. */
-  var nyq = (isFinite(fs) && fs > 0) ? fs * 0.5 : 24000;
-  var tot = gridTotalDb(960, fs), max = -Infinity, mf = 0, refineStepR = Math.pow(1000, 1/960);
+  var tot = gridTotalDb(960, fs), max = -Infinity, mf = 0;
   for (var k = 0; k <= 960; k++){
     if (tot[k] > max){ max = tot[k]; mf = 20*Math.pow(1000, k/960); } /* 20 Hz → 20 kHz, log */
-  }
-  /* Quét dải cận âm [0 .. 20 Hz) để bắt đỉnh lowshelf dưới 20 Hz */
-  var subStepR = Math.pow(20, 1/16);
-  var sub0 = totalDbAt(0, fs);
-  if (sub0 > max){ max = sub0; mf = 0; refineStepR = subStepR; }
-  for (var sk = 0; sk < 16; sk++){
-    var sf = Math.pow(20, sk/16), sv = totalDbAt(sf, fs);
-    if (sv > max){ max = sv; mf = sf; refineStepR = subStepR; }
-  }
-  /* Quét dải siêu âm (20 kHz .. Nyquist] khi fs > 40 kHz (ví dụ 88.2 / 96 kHz) */
-  if (nyq > 20000){
-    var ultraStepR = Math.pow(nyq / 20000, 1/128);
-    for (var uk = 1; uk <= 128; uk++){
-      var uf = 20000 * Math.pow(nyq / 20000, uk/128), uv = totalDbAt(uf, fs);
-      if (uv > max){ max = uv; mf = uf; refineStepR = ultraStepR; }
-    }
   }
   /* Tinh chỉnh đỉnh cục bộ (2026-10-31): đỉnh thật của một band hẹp có thể nằm
      giữa hai điểm lưới 960 (lưới hụt tối đa ~0,01 dB ở đỉnh nhọn) — chạy
@@ -644,7 +640,7 @@ function computeAutoPre(fs){
      và pre-amp bám đỉnh thật; chỉ nhận kết quả nếu cao hơn đỉnh lưới. */
   if (isFinite(max) && mf > 0){
     try {
-      var ga = Math.max(0, mf/refineStepR), gb = Math.min(nyq, mf*refineStepR), gr = (Math.sqrt(5)-1)/2;
+      var stepR = Math.pow(1000, 1/960), ga = mf/stepR, gb = mf*stepR, gr = (Math.sqrt(5)-1)/2;
       var gc1 = gb - gr*(gb-ga), gc2 = ga + gr*(gb-ga);
       var gv1 = totalDbAt(gc1, fs), gv2 = totalDbAt(gc2, fs);
       for (var git = 0; git < 40; git++){
