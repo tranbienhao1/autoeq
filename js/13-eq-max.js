@@ -1,14 +1,18 @@
 /* Web AutoEQ split module: 13-eq-max.js (nguon: khoi script L25316, L25390, L25423 cua ban 1 file) */
 
 /* ---------- EQ chuan xac toi da - 1 lan bam (yeu cau nguoi dung 02/11/2026;
-   cap nhat preset 07/11/2026 theo lab 6 o chuan) ----------
-   Chi la preset cau hinh + chay: dat moi o dieu khien solve-side ve cau hinh
-   thuan nhat da kiem chung (target goc - tat tu dong Khối 6, lam muot
-   psychoacoustic mac dinh, tat moi hau ky; BAT gioi han dai tan sua 20-10000 Hz
-   va BAT trong so ERB cua tuy chon solver Khối 3; giu nguyen so band nguoi dung
-   dang chon) bang dung su kien change cua tung o (trang thai duoc luu nhu khi
-   nguoi dung tu chinh), roi bam nut Buoc 3 goc. Lab 2026-11-07 tren ham that,
-   tham chieu co dinh (target goc, duong psycho): RMS sau trung binh 6 o
+   cap nhat preset 07/11/2026 theo lab 6 o chuan; nang cap 26/11/2026: bat
+   danh gia best-of) ----------
+   Preset cau hinh + chay: dat moi o dieu khien solve-side ve cau hinh thuan
+   nhat da kiem chung (target goc - tat tu dong Khối 6, lam muot psychoacoustic
+   mac dinh, tat moi hau ky; BAT gioi han dai tan sua 20-10000 Hz va BAT trong
+   so ERB cua tuy chon solver Khối 3) bang dung su kien change cua tung o
+   (trang thai duoc luu nhu khi nguoi dung tu chinh), roi bat co best-of va bam
+   nut Buoc 3 goc. Best-of (co san trong solver, H14/H16): khi dang chon 10
+   band, solver danh gia them ung vien 20 band va 12 band seeded va giu ban co
+   RMS-after thap nhat (cham bang RMS truc tiep, khong phai objective co phat);
+   voi so band khac 10, giu nguyen 1 lan giai nhu cu. Lab 2026-11-07 tren ham
+   that, tham chieu co dinh (target goc, duong psycho): RMS sau trung binh 6 o
    0,12515 -> 0,10734 dB, 6/6 o khong te hon (rieng range: 0,11159; rieng
    erbWeight: 0,12179). Khong them tang xu ly nao: solver, Worker va safety
    giu nguyen tuyet doi. */
@@ -66,9 +70,15 @@
     var info = document.getElementById("aeMaxAccInfo");
     var solve = document.getElementById("btnAutoEq");
     if (solve && !solve.disabled){
+      /* Nâng cấp khả năng: bật đánh giá best-of cho lần giải này — solver đánh giá
+         ứng viên 10/20/12 band (khi đang chọn 10 band) và giữ bản có RMS-after
+         thấp nhất, thay vì chỉ 1 lần giải. Cờ AUTO.bestOfPending được btnAutoEq
+         đọc và tự xoá sau khi dùng; với số band khác 10, solver giữ nguyên hành
+         vi 1 lần giải. */
+      if (typeof AUTO !== "undefined") AUTO.bestOfPending = true;
       solve.click();
     } else if (info){
-      info.textContent = "Đã đặt sẵn cấu hình chuẩn xác tối đa (target gốc · không hậu kỳ · giữ số band đang chọn). Hãy chọn nguồn đo ở Bước 1 trước, rồi bấm nút này lần nữa để chạy.";
+      info.textContent = "Đã đặt sẵn cấu hình chuẩn xác tối đa (target gốc · không hậu kỳ · đánh giá best-of giữ RMS tốt nhất khi chọn 10 band). Hãy chọn nguồn đo ở Bước 1 trước, rồi bấm nút này lần nữa để chạy.";
     }
   });
 })();
