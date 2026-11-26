@@ -1,21 +1,19 @@
 /* Web AutoEQ split module: 13-eq-max.js (nguon: khoi script L25316, L25390, L25423 cua ban 1 file) */
 
 /* ---------- EQ chuan xac toi da - 1 lan bam (yeu cau nguoi dung 02/11/2026;
-   cap nhat preset 07/11/2026 theo lab 6 o chuan; nang cap 26/11/2026: bat
-   danh gia best-of) ----------
+   cap nhat preset 07/11/2026 theo lab 6 o chuan; nang cap 26/11/2026: polish
+   seeded cung so band) ----------
    Preset cau hinh + chay: dat moi o dieu khien solve-side ve cau hinh thuan
    nhat da kiem chung (target goc - tat tu dong Khối 6, lam muot psychoacoustic
    mac dinh, tat moi hau ky; BAT gioi han dai tan sua 20-10000 Hz va BAT trong
    so ERB cua tuy chon solver Khối 3) bang dung su kien change cua tung o
-   (trang thai duoc luu nhu khi nguoi dung tu chinh), roi bat co best-of va bam
-   nut Buoc 3 goc. Best-of (co san trong solver, H14/H16): khi dang chon 10
-   band, solver danh gia them ung vien 20 band va 12 band seeded va giu ban co
-   RMS-after thap nhat (cham bang RMS truc tiep, khong phai objective co phat);
-   voi so band khac 10, giu nguyen 1 lan giai nhu cu. Lab 2026-11-07 tren ham
-   that, tham chieu co dinh (target goc, duong psycho): RMS sau trung binh 6 o
-   0,12515 -> 0,10734 dB, 6/6 o khong te hon (rieng range: 0,11159; rieng
-   erbWeight: 0,12179). Khong them tang xu ly nao: solver, Worker va safety
-   giu nguyen tuyet doi. */
+   (trang thai duoc luu nhu khi nguoi dung tu chinh), roi bam nut Buoc 3 goc.
+   Sau khi giai xong, chay them 1 luot polish seeded tu dung band ket qua
+   (cung so band, cung target — khong doi lua chon cua nguoi dung) va giu ban
+   co RMS-after thap nhat. Lab 2026-11-07 tren ham that, tham chieu co dinh
+   (target goc, duong psycho): RMS sau trung binh 6 o 0,12515 -> 0,10734 dB,
+   6/6 o khong te hon (rieng range: 0,11159; rieng erbWeight: 0,12179).
+   Khong them tang xu ly nao: solver, Worker va safety giu nguyen tuyet doi. */
 (function(){
   var btn = document.getElementById("btnAeMaxAcc");
   if (!btn) return;
@@ -70,17 +68,54 @@
     var info = document.getElementById("aeMaxAccInfo");
     var solve = document.getElementById("btnAutoEq");
     if (solve && !solve.disabled){
-      /* Nâng cấp khả năng: bật đánh giá best-of cho lần giải này — solver đánh giá
-         ứng viên 10/20/12 band (khi đang chọn 10 band) và giữ bản có RMS-after
-         thấp nhất, thay vì chỉ 1 lần giải. Cờ AUTO.bestOfPending được btnAutoEq
-         đọc và tự xoá sau khi dùng; với số band khác 10, solver giữ nguyên hành
-         vi 1 lần giải. */
-      if (typeof AUTO !== "undefined") AUTO.bestOfPending = true;
+      /* Tôn trọng lựa chọn của người dùng: tắt best-of (tránh đổi số band áp dụng),
+         vũ trang polish seeded cùng số band/target cho lần giải này. */
+      if (typeof AUTO !== "undefined") AUTO.bestOfPending = false;
+      var _tgtEl = document.getElementById("aeTarget"), _nbEl = document.getElementById("aeBands");
+      if (typeof window.__aeMaxArmPolish === "function" && _tgtEl && _nbEl)
+        window.__aeMaxArmPolish(_tgtEl.value, parseInt(_nbEl.value, 10));
       solve.click();
     } else if (info){
-      info.textContent = "Đã đặt sẵn cấu hình chuẩn xác tối đa (target gốc · không hậu kỳ · đánh giá best-of giữ RMS tốt nhất khi chọn 10 band). Hãy chọn nguồn đo ở Bước 1 trước, rồi bấm nút này lần nữa để chạy.";
+      info.textContent = "Đã đặt sẵn cấu hình chuẩn xác tối đa (target gốc · không hậu kỳ · giữ nguyên số band/target đang chọn, polish thêm để giữ RMS tốt nhất). Hãy chọn nguồn đo ở Bước 1 trước, rồi bấm nút này lần nữa để chạy.";
     }
   });
+})();
+
+/* --- EQ-max: polish seeded cung so band (2026-11-26) ---
+   Sau khi giai chinh xong, chay them 1 luot polish seeded tu dung band ket qua
+   (aeSolveSeeded qua Worker) va giu ban co RMS-after thap nhat. Cung so band,
+   cung target, cung setup — khong doi lua chon cua nguoi dung. Chi kich hoat
+   khi nut EQ-max vua bam (vu trang qua __aeMaxArmPolish kem targetId + so
+   band mong doi); moi loi goi khac di thang qua ham goc. Loi polish khong bao
+   gio lam hong duong chay goc: bat ky exception nao deu tra ket qua giai chinh. */
+(function(){
+  try {
+    if (typeof aeComputeAsync !== "function") return;
+    var _origAeComputeAsync = aeComputeAsync;
+    var _armed = null;
+    window.__aeMaxArmPolish = function(targetId, nB){ _armed = { targetId: targetId, nB: nB }; };
+    aeComputeAsync = function(prep, targetId, adj, nB, preserve, bestOf, fs, cb){
+      if (typeof fs === "function"){ cb = fs; fs = undefined; }
+      if (!_armed || _armed.targetId !== targetId || _armed.nB !== nB || bestOf){
+        return _origAeComputeAsync(prep, targetId, adj, nB, preserve, bestOf, fs, cb);
+      }
+      _armed = null;
+      _origAeComputeAsync(prep, targetId, adj, nB, preserve, bestOf, fs, function(out){
+        try {
+          var fsv = (typeof fs === "number" && isFinite(fs) && fs > 0) ? fs : AE_FS;
+          var S = aeComputeSetup(prep, targetId, adj, preserve);
+          aeSolveInWorker(AE.freqs, S.err, S.W, nB, fsv, function(res2){
+            var out2 = null;
+            try { out2 = aeComputeFinish(prep, S, res2, fsv); } catch(e2){}
+            if (out2 && out2.errAfter < out.errAfter){
+              out2.res.ms = (out.res.ms||0) + (out2.res.ms||0);
+              cb(out2);
+            } else cb(out);
+          }, out.res.bands);
+        } catch(e){ cb(out); }
+      });
+    };
+  } catch(e){}
 })();
 
 /* --- Shim tuong thich 2026-11-04: cac ten duoc yeu cau nhung truoc day khong co dung ten trong file. Day la wrapper moi, khong sua cac ham goc. Giu nguyen: appliedPreDb, hwPreamp, qaRunSuite, wasmBenchmark, DB_RAW, hwSelfCheck. --- */
