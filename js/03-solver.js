@@ -122,32 +122,18 @@ function aeSmooth(vals, freqs, octAt, perOct){
    Bỏ qua dòng header/comment; dòng trông như dữ liệu mà đọc không được -> lỗi rõ ràng kèm số dòng. */
 function aeParseMeasurement(text){
   var lines = String(text).split(/\r?\n/), pts=[], bad=[], skipped=0;
-  function isMalformedNumericToken(t){
-    return /^[+-]?(?:nan|inf(?:inity)?)$/i.test(t) || /^[+-]?(?:\d|\.\d)/.test(t);
-  }
   for (var li=0; li<lines.length; li++){
     var raw = lines[li].trim();
     if (!raw){ continue; }
     var first = raw.charAt(0);
     if (first==="*" || first==="#" || first===";"){ skipped++; continue; }
-    var delim = raw.indexOf("\t") >= 0 ? "\t" : (raw.indexOf(";") >= 0 ? ";" : (raw.indexOf(",") >= 0 ? "," : " "));
-    var toks = (delim === " " ? raw.split(/\s+/) : raw.split(delim)).map(function(x){ return x.replace(/^"+|"+$/g, "").trim(); }).filter(function(x){ return x.length>0; });
-    if (toks.length < 2){
-      if (toks.length === 1 && isMalformedNumericToken(toks[0])) bad.push(li+1);
-      else skipped++;
-      continue;
-    }
-    function parseNum(t){
-      if ((delim === ";" || delim === "\t" || delim === " ") && /^[+-]?\d+,\d+(?:[eE][+-]?\d+)?$/.test(t)) t = t.replace(",", ".");
-      if (!/^[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?$/.test(t)) return NaN;
-      return Number(t);
-    }
-    var f = parseNum(toks[0]), v = parseNum(toks[1]);
+    var toks = raw.split(/[,;\t ]+/).filter(function(x){ return x.length>0; });
+    var f = parseFloat(toks[0]), v = toks.length>1 ? parseFloat(toks[1]) : NaN;
     if (isFinite(f) && isFinite(v)){
       if (f>=10 && f<=24000 && v>-100 && v<200){ pts.push([f,v]); continue; }
       bad.push(li+1); continue; /* số nhưng ngoài dải hợp lệ */
     }
-    if (isMalformedNumericToken(toks[0]) || /^[+-]?(?:nan|inf(?:inity)?)$/i.test(toks[1])){ bad.push(li+1); }
+    if (/[0-9]/.test(first)){ bad.push(li+1); } /* bắt đầu bằng số mà không đọc được = dòng dữ liệu hỏng */
     else skipped++; /* header chữ */
   }
   if (bad.length) throw new Error("Dòng dữ liệu không đọc được ở dòng: "+bad.slice(0,8).join(", ")+(bad.length>8?"…":"")+" — file phải có 2 cột: tần số (Hz) và SPL (dB).");
@@ -567,6 +553,7 @@ function aeSolveSingle(freqs, errDb, weights, nBands, relLambda, nmPasses, regCo
        đổi sau mỗi band; cache lượng giác freqs._cw vẫn do aeBandCurve
        xây như trước (nhánh dự phòng chỉ chạy khi thiếu). --- */
   var nmBase = null, nmBi = -1;
+  /* (vong tu dong 18:24, huong A): inline he so RBJ trong objective/objectiveS cua aeSolveSingle - truoc day moi lan danh gia NM goi rbjCoeffs cap phat object {b0..a2} roi doc lai 5 truong; nay voi 3 ho peaking/lowshelf/highshelf (duy nhat solver dung) tinh thang b0..a2 vao bien cuc bo voi dung thu tu bieu thuc, dung kep/guard identity va phep chia chuan hoa cua rbjCoeffs (slopeS khong truyen nen dung alpha) nen GIONG TUNG BIT; type khac roi ve rbjCoeffs goc. Khong tham chieu bien ngoai moi (chi Math/isFinite/rbjCoeffs da co trong AE_WORKER_SRC) nen parity Worker giu nguyen. Lab: parity objective 5200 ca + tich hop aeSolve 22 fixture 0 lech (Object.is); bench khoi paired-median xen ke 15 vong: 1,0238x thang 15/15 va 1,0140x thang 11/15. */
   function objective(bi, trial){
     if (nmBi !== bi || !nmBase){
       nmBase = new Array(n);
@@ -574,8 +561,42 @@ function aeSolveSingle(freqs, errDb, weights, nBands, relLambda, nmPasses, regCo
       nmBi = bi;
     }
     if (!freqs._cw || freqs._cw.length !== n || freqs._cwFs !== fsv) aeBandCurve(trial, freqs, fsv);
-    var cc = rbjCoeffs(trial.type, trial.freq, trial.gain, trial.q, fsv);
-    var b0=cc.b0, b1=cc.b1, b2=cc.b2, a1=cc.a1, a2=cc.a2;
+    var b0, b1, b2, a1, a2;
+    var _tt = trial.type;
+    if (_tt === "peaking" || _tt === "lowshelf" || _tt === "highshelf") {
+      var _tf = trial.freq, _tg = trial.gain, _tq = trial.q;
+      if (!isFinite(_tf) || !isFinite(_tg) || !isFinite(_tq) || !isFinite(fsv) || fsv <= 0) { b0=1;b1=0;b2=0;a1=0;a2=0; }
+      else {
+        _tf = Math.min(Math.min(22000, 0.495*fsv), Math.max(10, _tf));
+        _tg = Math.max(-30, Math.min(30, _tg));
+        _tq = Math.max(0.1, Math.min(30, _tq));
+        if (_tg === 0) { b0=1;b1=0;b2=0;a1=0;a2=0; }
+        else {
+          var _w0 = 2*Math.PI*_tf/fsv, _cw0 = Math.cos(_w0), _sw0 = Math.sin(_w0);
+          var _alpha = _sw0/(2*_tq);
+          var _A = Math.pow(10, _tg/40);
+          var _b0, _b1, _b2, _a0, _a1, _a2;
+          if (_tt === "peaking") {
+            _b0=1+_alpha*_A; _b1=-2*_cw0; _b2=1-_alpha*_A; _a0=1+_alpha/_A; _a1=-2*_cw0; _a2=1-_alpha/_A;
+          } else {
+            var _s = 2*Math.sqrt(_A)*_alpha;
+            if (_tt === "lowshelf") {
+              _b0=_A*((_A+1)-(_A-1)*_cw0+_s); _b1=2*_A*((_A-1)-(_A+1)*_cw0); _b2=_A*((_A+1)-(_A-1)*_cw0-_s);
+              _a0=(_A+1)+(_A-1)*_cw0+_s; _a1=-2*((_A-1)+(_A+1)*_cw0); _a2=(_A+1)+(_A-1)*_cw0-_s;
+            } else {
+              _b0=_A*((_A+1)+(_A-1)*_cw0+_s); _b1=-2*_A*((_A-1)+(_A+1)*_cw0); _b2=_A*((_A+1)+(_A-1)*_cw0-_s);
+              _a0=(_A+1)-(_A-1)*_cw0+_s; _a1=2*((_A-1)-(_A+1)*_cw0); _a2=(_A+1)-(_A-1)*_cw0-_s;
+            }
+          }
+          var _nb0=_b0/_a0, _nb1=_b1/_a0, _nb2=_b2/_a0, _na1=_a1/_a0, _na2=_a2/_a0;
+          if (!isFinite(_nb0+_nb1+_nb2+_na1+_na2)) { b0=1;b1=0;b2=0;a1=0;a2=0; }
+          else { b0=_nb0;b1=_nb1;b2=_nb2;a1=_na1;a2=_na2; }
+        }
+      }
+    } else {
+      var cc = rbjCoeffs(trial.type, trial.freq, trial.gain, trial.q, fsv);
+      b0=cc.b0; b1=cc.b1; b2=cc.b2; a1=cc.a1; a2=cc.a2;
+    }
     var C1=freqs._cw, S1=freqs._sw, C2=freqs._cw2, S2=freqs._sw2;
     var s=0;
     for (var k2=0;k2<n;k2++){
@@ -733,8 +754,42 @@ function aeSolveSingle(freqs, errDb, weights, nBands, relLambda, nmPasses, regCo
       nmBi = bi;
     }
     if (!freqs._cw || freqs._cw.length !== n || freqs._cwFs !== fsv) aeBandCurve(trial, freqs, fsv);
-    var cc = rbjCoeffs(trial.type, trial.freq, trial.gain, trial.q, fsv);
-    var b0=cc.b0, b1=cc.b1, b2=cc.b2, a1=cc.a1, a2=cc.a2;
+    var b0, b1, b2, a1, a2;
+    var _tt = trial.type;
+    if (_tt === "peaking" || _tt === "lowshelf" || _tt === "highshelf") {
+      var _tf = trial.freq, _tg = trial.gain, _tq = trial.q;
+      if (!isFinite(_tf) || !isFinite(_tg) || !isFinite(_tq) || !isFinite(fsv) || fsv <= 0) { b0=1;b1=0;b2=0;a1=0;a2=0; }
+      else {
+        _tf = Math.min(Math.min(22000, 0.495*fsv), Math.max(10, _tf));
+        _tg = Math.max(-30, Math.min(30, _tg));
+        _tq = Math.max(0.1, Math.min(30, _tq));
+        if (_tg === 0) { b0=1;b1=0;b2=0;a1=0;a2=0; }
+        else {
+          var _w0 = 2*Math.PI*_tf/fsv, _cw0 = Math.cos(_w0), _sw0 = Math.sin(_w0);
+          var _alpha = _sw0/(2*_tq);
+          var _A = Math.pow(10, _tg/40);
+          var _b0, _b1, _b2, _a0, _a1, _a2;
+          if (_tt === "peaking") {
+            _b0=1+_alpha*_A; _b1=-2*_cw0; _b2=1-_alpha*_A; _a0=1+_alpha/_A; _a1=-2*_cw0; _a2=1-_alpha/_A;
+          } else {
+            var _s = 2*Math.sqrt(_A)*_alpha;
+            if (_tt === "lowshelf") {
+              _b0=_A*((_A+1)-(_A-1)*_cw0+_s); _b1=2*_A*((_A-1)-(_A+1)*_cw0); _b2=_A*((_A+1)-(_A-1)*_cw0-_s);
+              _a0=(_A+1)+(_A-1)*_cw0+_s; _a1=-2*((_A-1)+(_A+1)*_cw0); _a2=(_A+1)+(_A-1)*_cw0-_s;
+            } else {
+              _b0=_A*((_A+1)+(_A-1)*_cw0+_s); _b1=-2*_A*((_A-1)+(_A+1)*_cw0); _b2=_A*((_A+1)+(_A-1)*_cw0-_s);
+              _a0=(_A+1)-(_A-1)*_cw0+_s; _a1=2*((_A-1)-(_A+1)*_cw0); _a2=(_A+1)-(_A-1)*_cw0-_s;
+            }
+          }
+          var _nb0=_b0/_a0, _nb1=_b1/_a0, _nb2=_b2/_a0, _na1=_a1/_a0, _na2=_a2/_a0;
+          if (!isFinite(_nb0+_nb1+_nb2+_na1+_na2)) { b0=1;b1=0;b2=0;a1=0;a2=0; }
+          else { b0=_nb0;b1=_nb1;b2=_nb2;a1=_na1;a2=_na2; }
+        }
+      }
+    } else {
+      var cc = rbjCoeffs(trial.type, trial.freq, trial.gain, trial.q, fsv);
+      b0=cc.b0; b1=cc.b1; b2=cc.b2; a1=cc.a1; a2=cc.a2;
+    }
     var C1=freqs._cw, S1=freqs._sw, C2=freqs._cw2, S2=freqs._sw2;
     var s=0;
     for (var k2=0;k2<n;k2+=2){
