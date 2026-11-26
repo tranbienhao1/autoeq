@@ -184,16 +184,24 @@ for (var _gk = 0; _gk < 120; _gk++) DB_GRID.push(20 * Math.pow(2, _gk / 12));
 DB_GRID.push(20000);
 /* (vòng tự động 07:26 ngày 2026-11-24, hướng D — ÁP DỤNG, vá code, bản đa file): dbDecodeV giải mã 605.000 cặp ký tự mỗi lần nạp kho (5.000 mục × 121 điểm) bằng parseInt(s.substr(i,2),36) — mỗi cặp tốn 1 lần substr + parseInt. Nay đường nhanh tính số base36 bằng charCode (cặp [0-9a-z] hợp lệ: d1*36+d2, số nguyên nhỏ chính xác tuyệt đối trong double) rồi áp đúng biểu thức (code-600)/10; mọi cặp chứa ký tự ngoài [0-9a-z] (chữ hoa, dấu, khoảng trắng, ký tự lạ) rơi về đúng biểu thức gốc parseInt(s.substr(i,2),36) nên hành vi với dữ liệu lệch chuẩn giữ nguyên từng bit, kể cả NaN; đầu vào không phải chuỗi đi nguyên đường gốc. Lab (hidden_files/run_20261124_0726_D/, extract verbatim + harness2.js, 2 lần bench độc lập): parity 30.943/30.943 GIỐNG TỪNG BIT cả 2 lần (toàn bộ 5.000 mục DB_RAW thật — 605.000/605.000 cặp đều thuộc đường nhanh — + liệt kê đầy đủ mọi cặp 2 ký tự trên bảng chữ 77 ký tự + 20.000 fuzz + biên non-string ném lỗi đúng loại/thông điệp); decode 5.000 mục paired-median xen kẽ 15 vòng: lần 1 3,3835× (thắng 13/15), lần 2 3,2429× (thắng 15/15). Ứng viên knot-freq tiền tính trong cùng lượt bị BÁC (0,9637×, thắng 9/15 — không ổn định), không áp. Không chạm solver/WASM/FIR/QA logic; aeV3 không đổi theo cấu trúc (không đo lại; gần nhất 468/482 ms ngày 2026-11-11). QA trình duyệt đầy đủ chưa chạy được trên VM (headless Chrome bị chặn Hatch WebGL). Lượt kế: nhóm A. --- */
 /* --- vòng tự động 19:54 nhóm D (bản đa file): tiền cấp phát mảng trong dbDecodeV — ÁP DỤNG, vá code. dbBuildPhones giải mã 5.000 mục x 121 điểm (605.000 điểm) mỗi lần mở trang; trước đây out.push() cấp phát + tăng trưởng mảng dần. Nay new Array(Math.max(0, s.length >> 1)) + gán theo chỉ số — số phần tử đúng floor(len/2) như vòng cũ (kể cả độ dài lẻ/length phân số/âm/NaN: Math.max(0, ...) giữ hành vi trả [] như cũ, không ném RangeError); mọi biểu thức tính _code giữ nguyên từng toán hạng nên giá trị GIỐNG TỪNG BIT theo cấu trúc. Lab (hidden_files/run_20261124_1954_D/lab/, extract verbatim + harness + bench, 2 lần bench độc lập): parity 11.538/11.538 GIỐNG TỪNG BIT (5.000 mục thực tế 121 điểm + biên rỗng/lẻ/unicode/emoji + non-string null/undefined/số/object/array-like length âm/NaN/phân số/chuỗi + 6.000 fuzz + 500 fuzz length); bench paired-median xen kẽ 15 vòng trên decode 5.000 mục — lần 1 1,1558x (thắng 14/15), lần 2 1,2052x (thắng 15/15), acc khớp tuyệt đối. Không chạm solver/WASM/FIR/QA logic; aeV3 không đổi theo cấu trúc (không đo lại; gần nhất 468/482 ms ngày 2026-11-11). QA trình duyệt đầy đủ chưa chạy được trên VM (headless Chrome bị chặn Hatch WebGL). Lượt kế: nhóm A. --- */
+/* --- vòng tự động 03:03 nhóm D (bản đa file): bảng tra ký tự base36 trong dbDecodeV — ÁP DỤNG, vá code. dbDecodeV giải mã 605.000 cặp ký tự mỗi lần nạp kho (5.000 mục x 121 điểm); trước đây mỗi cặp tính 2 chữ số bằng chuỗi so sánh lồng nhau (_c>=48&&_c<=57 ? _c-48 : (_c>=97&&_c<=122 ? _c-87 : -1)) x2. Nay bảng _dbDecTab[128] dựng MỘT lần (chữ số 0-9 tại 48-57, 10-35 tại 97-122, -1 còn lại) và mỗi ký tự chỉ còn 1 lần tra bảng (_c<128 ? tab[_c] : -1) — cùng giá trị chữ số cho mọi mã ký tự (ký tự >=128 cho -1 đúng như nhánh so sánh cũ), điều kiện rơi về parseInt giữ nguyên nên hành vi GIỐNG TỪNG BIT theo cấu trúc. Đối xứng với bảng _dbEncTab ở dbEncodeV (01:54 hôm nay). Lab (hidden_files/run_20261127_0303_D/lab/, hàm trích verbatim từ file + harness, 2 lần chạy độc lập): parity 35.838/35.838 GIỐNG TỪNG BIT cả 2 lần (5.000 chuỗi v thật + liệt kê đầy đủ cặp 2 ký tự trên bảng 77 ký tự + 20.000 fuzz + non-string/biên/getter ném lỗi); tốc độ decode 5.000 chuỗi thật paired-median xen kẽ 15 vòng — 4 lần đo 1,1046x/1,0890x/1,0925x/1,0962x (thắng 13-15/15), control old-vs-old 1,0016x/1,0019x (thắng 8-9/15). Không chạm solver/WASM/FIR/QA logic; aeV3 không đổi theo cấu trúc (không đo lại; gần nhất 468/482 ms ngày 2026-11-11). QA trình duyệt đầy đủ chưa chạy được trên VM (headless Chrome bị chặn Hatch WebGL). Lượt kế: nhóm A. --- */
+var _dbDecTab = null;
 function dbDecodeV(s){
   var out = new Array(Math.max(0, s.length >> 1));
   var _isStr = typeof s === "string";
   var _oi = 0;
+  if (!_dbDecTab){
+    _dbDecTab = new Array(128);
+    for (var _ci = 0; _ci < 128; _ci++) _dbDecTab[_ci] = -1;
+    for (var _d = 0; _d < 10; _d++) _dbDecTab[48 + _d] = _d;
+    for (var _l = 0; _l < 26; _l++) _dbDecTab[97 + _l] = 10 + _l;
+  }
   for (var i = 0; i + 1 < s.length; i += 2){
     var _code;
     if (_isStr){
       var _c1 = s.charCodeAt(i), _c2 = s.charCodeAt(i + 1);
-      var _d1 = _c1 >= 48 && _c1 <= 57 ? _c1 - 48 : (_c1 >= 97 && _c1 <= 122 ? _c1 - 87 : -1);
-      var _d2 = _c2 >= 48 && _c2 <= 57 ? _c2 - 48 : (_c2 >= 97 && _c2 <= 122 ? _c2 - 87 : -1);
+      var _d1 = _c1 < 128 ? _dbDecTab[_c1] : -1;
+      var _d2 = _c2 < 128 ? _dbDecTab[_c2] : -1;
       _code = (_d1 >= 0 && _d2 >= 0) ? (_d1 * 36 + _d2 - 600) / 10 : (parseInt(s.substr(i, 2), 36) - 600) / 10;
     } else {
       _code = (parseInt(s.substr(i, 2), 36) - 600) / 10;
