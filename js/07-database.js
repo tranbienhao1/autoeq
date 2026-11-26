@@ -681,7 +681,8 @@ var _dbScoreCache = new Map();
 /* --- Mở rộng 2026-11-24 (vòng tự động 03:25, hướng D — ÁP DỤNG, vá code, bản đa file): Lượt nhóm D đầu tiên trên pipeline đa file (zip Drive fileId 1wxh8UvW6qUhZLE2qjJbhZtDQd691dBak, sau C 02:54 trên bản 1 file). Ứng viên D duy nhất: cache phía truy vấn trong dbScore (_dbScoreQCache Map, khóa theo chuỗi truy vấn thô khi typeof q === "string") — trước đây mỗi lần gõ tìm kiếm, dbRenderResults gọi dbScore cho MỌI tai nghe trong DB_PHONES (tới 5.000 mục) và mỗi lần đều tính lại dbNormStr(q) (toLowerCase + normalize NFD + 3 lần replace regex), Q.replace(/ /g,"") và Q.split(" ") dù truy vấn không đổi trong suốt một lần quét; nay tính MỘT lần (Q, qc, qtoks) theo truy vấn rồi dùng lại cho mọi tên — biểu thức tính điểm (+100/+80/+30/+18/+8, thứ tự cộng, điều kiện if (!Q) return 1 sau khi đã tính N như cũ, dbLev giữ nguyên) giữ nguyên từng toán hạng nên mọi điểm GIỐNG TỪNG BIT theo cấu trúc (dbNormStr thuần xác định trên chuỗi; truy vấn không phải chuỗi đi đường không cache, hành vi ném lỗi giữ nguyên). Lab Node trên hàm thật trích verbatim (hidden_files/run_20261124_0325_D/, 2 lần chạy độc lập): parity 75.520/75.520 GIỐNG TỪNG BIT; tốc độ paired-median xen kẽ 15 vòng trên quét 5.000 tên/truy vấn — xem nhật ký ngày cho số liệu. Không chạm solver/WASM/FIR/QA logic; aeV3 không đổi theo cấu trúc (không đo lại; gần nhất 468/482 ms ngày 2026-11-11). Lượt kế: nhóm A. --- */
 var _dbScoreQCache = new Map();
 /* --- Mở rộng 2026-11-24 (vòng tự động 09:27, hướng D — ÁP DỤNG, vá code, bản đa file): Lượt nhóm D (sau C 08:54, BÁC BỎ). Ứng viên D duy nhất: thay _qe.qtoks.forEach(callback) bằng vòng for thường trong dbScore (js/07-database.js) — dbRenderResults gọi dbScore cho MỌI tai nghe trong DB_PHONES (tới 5.000 mục) mỗi lần gõ tìm kiếm, và forEach cấp phát 1 closure mỗi lần gọi (5.000 closure/lần quét) kèm chi phí gọi hàm; vòng for đọc trực tiếp _qe.qtoks[_ti] theo đúng thứ tự 0..n-1, giữ nguyên từng toán hạng/thứ tự cộng (+30/+18/+8, điều kiện if (!tok) continue tương đương return trong callback forEach) nên mọi điểm GIỐNG TỪNG BIT theo cấu trúc. Lab (hidden_files/run_20261124_0924_D/, extract verbatim + harness + bench, 2 lần bench độc lập): parity 49.967/49.967 GIỐNG TỪNG BIT (ma trận truy vấn × tên, biên rỗng/dấu tiếng Việt, non-string q/name, tên ném lỗi, 4.000 fuzz); bench paired-median xen kẽ 15 vòng trên quét 5.000 tên — lần 1 W1 1,0798x/W2 1,0585x/W3 1,0327x/W4 1,0958x/W5 1,0654x/W6 1,0333x (thắng 13–15/15), lần 2 W1 1,0523x/W2 1,0368x/W3 1,0090x/W4 1,1383x/W5 1,0260x/W6 1,0188x (thắng 12–15/15), acc khớp tuyệt đối. Không chạm solver/WASM/FIR/QA logic; aeV3 không đổi theo cấu trúc (không đo lại; gần nhất 468/482 ms ngày 2026-11-11). QA trình duyệt đầy đủ chưa chạy được trên VM (headless Chrome bị chặn Hatch WebGL). Lượt kế: nhóm A. --- */
-function dbScore(q, name){
+/* --- vòng tự động 04:17 nhóm D (bản đa file): tách điểm nền dbScoreBase + chấm điểm hai pha trong dbRenderResults — ÁP DỤNG, vá code. dbScore trước đây tính cả Levenshtein (dbLevCap8) cho MỌI tai nghe mỗi lần gõ tìm kiếm (Lev kích hoạt 50,6% số cặp (truy vấn, tên) trên dữ liệu thật 241 truy vấn × 5.000 tên, và là phần đắt nhất của điểm). Nay dbScoreBase giữ nguyên toàn bộ phần điểm nền (+100/+80/+30/+18/+8, thứ tự cộng, thứ tự đọc cache và hành vi ném lỗi từng toán hạng như dbScore cũ) và dbScore = dbScoreBase + đúng dòng Lev cũ (qc/nc lấy từ cache đã nạp bởi dbScoreBase, điều kiện |Δlen|<8 và biểu thức Math.max(0, 24 - dbLevCap8*3) giữ nguyên) nên dbScore GIỐNG TỪNG BIT theo cấu trúc. dbRenderResults tính điểm nền cho mọi mục trước, lấy ngưỡng = điểm nền thứ K lớn nhất (K=8/24 theo nhánh slice hiện có); vì điểm cuối = điểm nền + thưởng Lev ∈ [0,24] nên mục có điểm nền + 24 < ngưỡng chắc chắn không vào được top-K (điểm thứ K cuối cùng ≥ ngưỡng) — chỉ các mục còn lại mới gọi dbScore đầy đủ. Sort ổn định + slice như cũ nên danh sách hiển thị GIỐNG TỪNG BIT (kể cả mảng thưa: kiểm tra (_di in DB_PHONES) giữ nguyên). Khác hướng đã bác: top-8 thay sort toàn phần (00:54 hôm nay — pipeline không cải thiện vì chấm điểm chiếm áp đảo; lượt này cắt chính phần Lev trong chấm điểm), knot-freq tiền tính (24/11 — không thử lại). Lab (hidden_files/run_20261127_0417_D/lab/, hàm trích verbatim + harness vm, 2 lần bench độc lập): parity dbScore 1.205.000/1.205.000 + edge 650/650 + fuzz 20.000/20.000 GIỐNG TỪNG BIT; parity pipeline top-K 241/241 + mảng thưa 60/60 GIỐNG TỪNG BIT; tốc độ pipeline (67 truy vấn × 5.000 tên) paired-median xen kẽ 15 vòng — lần 1 3,5567x (thắng 15/15), lần 2 3,5054x (thắng 15/15), control old/old 0,9980x (thắng 7/15). Không chạm solver/WASM/FIR/QA logic; aeV3 không đổi theo cấu trúc (không đo lại; gần nhất 468/482 ms ngày 2026-11-11). QA trình duyệt đầy đủ chưa chạy được trên VM (headless Chrome bị chặn Hatch WebGL). Lượt kế: nhóm A. --- */
+function dbScoreBase(q, name){
   var _qe;
   if (typeof q === "string"){
     _qe = _dbScoreQCache.get(q);
@@ -718,8 +719,19 @@ function dbScore(q, name){
       if (i === tok.length) score += 8;
     }
   }
-  if (Math.abs(qc.length - nc.length) < 8) score += Math.max(0, 24 - dbLevCap8(qc, nc) * 3);
   return score;
+}
+function dbScore(q, name){
+  var sc = dbScoreBase(q, name);
+  var _qe = (typeof q === "string") ? _dbScoreQCache.get(q) : null;
+  var Qv, qcv;
+  if (_qe){ Qv = _qe.Q; qcv = _qe.qc; }
+  else { Qv = dbNormStr(q); qcv = Qv.replace(/ /g, ""); }
+  if (!Qv) return sc;
+  var _ce = _dbScoreCache.get(String(name || ""));
+  var nc = _ce ? _ce.nc : dbNormStr(name).replace(/ /g, "");
+  if (Math.abs(qcv.length - nc.length) < 8) sc += Math.max(0, 24 - dbLevCap8(qcv, nc) * 3);
+  return sc;
 }
 function dbRenderResults(){
   var q = $("dbSearch").value;
@@ -729,13 +741,30 @@ function dbRenderResults(){
     list = q.trim() ? [] : DB_PHONES.slice(0, 24).map(function(p){ return { p: p, s: 1 }; });
   } else {
     /* (vòng tự động 12:13, hướng D): gộp vòng lọc s>10 vào vòng chấm điểm — trước đây map toàn bộ DB_PHONES (tới 5.000 mục) thành wrapper {p,s} rồi sort 5.000 mục mới filter; nay chỉ push wrapper khi s>10 rồi sort/slice như cũ. Sort ổn định + filter bảo toàn thứ tự tương đối nên đầu ra GIỐNG TỪNG BIT (kể cả mảng thưa: vòng for + kiểm tra (_di in DB_PHONES) mô phỏng đúng ngữ nghĩa bỏ qua lỗ của map). Đối xứng với vá aeRenderStepResults 08:24 ở js/03-solver.js, áp cho nhánh DB_PHONES chưa từng làm. */
-    var scored = [];
+    /* (vòng tự động 04:17 nhóm D): chấm điểm hai pha — điểm nền (dbScoreBase, không Lev) cho mọi mục, ngưỡng = điểm nền thứ K lớn nhất (K=8/24 theo nhánh slice); mục có điểm nền + 24 < ngưỡng chắc chắn không vào top-K (điểm cuối = điểm nền + thưởng Lev ∈ [0,24], điểm thứ K cuối cùng ≥ ngưỡng) nên chỉ mục còn lại mới gọi dbScore đầy đủ. Sort ổn định + slice như cũ nên đầu ra GIỐNG TỪNG BIT (kể cả mảng thưa: kiểm tra (_di in DB_PHONES) giữ nguyên). */
     var _n = DB_PHONES.length;
+    var _base = new Array(_n);
+    var _cnt = 0;
     for (var _di = 0; _di < _n; _di++){
       if (!(_di in DB_PHONES)) continue;
-      var _dp = DB_PHONES[_di];
-      var _ds = dbScore(q, _dp.name);
-      if (_ds > 10) scored.push({ p: _dp, s: _ds });
+      _base[_di] = dbScoreBase(q, DB_PHONES[_di].name);
+      _cnt++;
+    }
+    var _K = q.trim() ? 8 : 24;
+    var _thresh = -Infinity;
+    if (_cnt >= _K){
+      var _vals = [];
+      for (var _vi = 0; _vi < _n; _vi++){ if (_vi in _base) _vals.push(_base[_vi]); }
+      _vals.sort(function(a, b){ return b - a; });
+      _thresh = _vals[_K - 1];
+    }
+    var scored = [];
+    for (var _di2 = 0; _di2 < _n; _di2++){
+      if (!(_di2 in _base)) continue;
+      if (_base[_di2] + 24 < _thresh) continue;
+      var _dp2 = DB_PHONES[_di2];
+      var _ds2 = dbScore(q, _dp2.name);
+      if (_ds2 > 10) scored.push({ p: _dp2, s: _ds2 });
     }
     scored.sort(function(a, b){ return b.s - a.s; });
     list = q.trim() ? scored.slice(0, 8) : scored.slice(0, 24);
