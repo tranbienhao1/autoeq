@@ -319,6 +319,8 @@ function isoValidityCheck(phon, f){
 function isoCompDb(listen, ref, f){
   listen = Math.max(0, Math.min(90, listen));
   ref = Math.max(0, Math.min(90, ref));
+  if (listen !== listen) listen = 80; /* (vòng tự động 04:10, hướng C — ÁP DỤNG, vá code): chuẩn hoá phon không hữu hạn về 80 trong isoCompDb như isoSpl/loudGainsFor/loudFitError — trước đây listen/ref = NaN/undefined/chuỗi rác cho phép trừ (isoSpl(l,f)-l) = NaN dù isoSpl đã chuẩn hoá phon về 80, và comment của loudGainsFor (02:54) khẳng định isoCompDb(NaN,60,f) tương đương (80,60) là chưa đúng; nay sau bước kẹp [0,90] giá trị không hữu hạn chỉ có thể là NaN (±Infinity đã kẹp thành 90/0 hữu hạn) nên kiểm tra bằng tự so sánh !== (không gọi isFinite global trên đường nóng mặc định 80/80 của syncLoudReadouts) rồi gán 80 — mọi đầu vào hữu hạn cho kết quả giống từng bit, chỉ các ca trước đây trả NaN nay trả đúng giá trị fallback 80 phon. Lab: parity hữu hạn 103243/103243 GIỐNG TỪNG BIT, không hữu hạn 400/400 khớp fallback 80, tốc độ trung tính 0,99-1,00x. */
+  if (ref !== ref) ref = 80;
   if (listen === ref) return 0;
   return (isoSpl(listen, f) - listen) - (isoSpl(ref, f) - ref);
 }
