@@ -753,10 +753,19 @@ function dbRenderResults(){
     var _K = q.trim() ? 8 : 24;
     var _thresh = -Infinity;
     if (_cnt >= _K){
-      var _vals = [];
-      for (var _vi = 0; _vi < _n; _vi++){ if (_vi in _base) _vals.push(_base[_vi]); }
-      _vals.sort(function(a, b){ return b - a; });
-      _thresh = _vals[_K - 1];
+      /* (vòng tự động 06:14 nhóm D): chọn ngưỡng top-K bằng chèn trực tiếp thay cho sort toàn phần 5.000 điểm nền — _top giữ K điểm lớn nhất theo thứ tự giảm dần; mỗi điểm nền chỉ cần 1 phép so sánh với điểm nhỏ nhất đang giữ (_top[_top.length-1]) để biết có vào được top-K không, chỉ khi vào mới chèn (splice, K<=24 nên rẻ). Đa tập K điểm lớn nhất không phụ thuộc thứ tự chèn nên _top[_K-1] GIỐNG TỪNG BIT với _vals[_K-1] của bản sort cũ (kể cả khi có điểm bằng nhau: chỉ giá trị ngưỡng được dùng). Lab (hidden_files/run_20261127_0614_D/lab/, khối trích verbatim + harness, 2 lần bench độc lập): parity 3055/3055 GIỐNG TỪNG BIT (mảng điểm thật 12 truy vấn x 5.000 tên K=8/24, mảng thưa có lỗ, biên _cnt<K/rỗng/toàn bằng nhau, fuzz 3000); tốc độ tính ngưỡng trên mảng thật paired-median xen kẽ 21 vòng — lần 1 K=8 14,17x / K=24 13,15x (thắng 21/21), lần 2 K=8 14,34x / K=24 12,53x (thắng 21/21), control old/old 1,010x/0,974x. Không chạm solver/WASM/FIR/QA logic; aeV3 không đổi theo cấu trúc (không đo lại; gần nhất 468/482 ms ngày 2026-11-11). QA trình duyệt đầy đủ chưa chạy được trên VM (headless Chrome bị chặn Hatch WebGL). Lượt kế: nhóm A. --- */
+      var _top = [];
+      for (var _vi = 0; _vi < _n; _vi++){
+        if (!(_vi in _base)) continue;
+        var _bv = _base[_vi];
+        if (_top.length < _K || _bv > _top[_top.length - 1]){
+          var _ip = _top.length;
+          while (_ip > 0 && _top[_ip - 1] < _bv) _ip--;
+          _top.splice(_ip, 0, _bv);
+          if (_top.length > _K) _top.length = _K;
+        }
+      }
+      _thresh = _top[_K - 1];
     }
     var scored = [];
     for (var _di2 = 0; _di2 < _n; _di2++){
