@@ -366,8 +366,10 @@ function aeSolveSingle(freqs, errDb, weights, nBands, relLambda, nmPasses, regCo
     }
     bands.push({ type:"highshelf", freq:10000, gain:0, q:0.707 });
   }
-  var W = weights, sumW=0; for (i=0;i<n;i++) sumW+=W[i];
-  var sumW2=0; for (var swi=0;swi<n;swi+=2) sumW2+=W[swi];
+  /* (vong tu dong 06:21, huong A): hop nhat 2 vong tinh sumW/sumW2 cua aeSolveSingle thanh 1 vong unroll x2 - truoc day vong 1 cong don W[0..n-1] vao sumW roi vong 2 cong don W[0],W[2],... vao sumW2; nay vong unroll cong don sumW theo dung thu tu W[0],W[1],W[2],... va sumW2 theo dung thu tu W[0],W[2],W[4],... (phan tu le cuoi khi n le xu ly sau vong) nen moi accumulator nhan dung toan hang, dung thu tu cong nhu ban goc, GIONG TUNG BIT ke ca NaN/Infinity/-0/mang thua; chi bot 1 lan duyet W va 1 lan khoi tao vong. Khong tham chieu bien ngoai moi nen parity Worker giu nguyen. Lab Node tren ham that trich verbatim, file thuong noi lien (extract.py + driver.js trong hidden_files/run_20261127_0621_A/lab/, 2 lan chay doc lap): parity toan ham aeSolveSingle 105/105 ca GIONG TUNG BIT ca 2 lan (Object.is sau tren bands/total/fixedPoint; gom 10/20 band, contBands + rong, nullMid, W=0/NaN/am/thua, err cuc doan, fs 44100/96000/0/NaN/22050, anchor/stepScale, n=0/1/3/9/239/240/241, freqs NaN/Infinity/thua, 40 fuzz) + parity khoi 45/45; toc do khoi paired-median xen ke 21 vong x 20000 rep: bien the unroll 1,69x/1,52x/1,54x (thang 21/21 moi lan), bien the bitwise 1,38x/1,34x/1,35x; toan ham aeSolveSingle trung tinh trong nhieu may chia se (median 43 ms ca 2 ban, dung ky vong vi khoi chi ~micro-giay/lan goi). Khong cham solver/WASM/FIR/QA logic; aeV3 khong doi theo cau truc (khong do lai; gan nhat 468/482 ms ngay 2026-11-11). Bo dem lab-only van 12. Luot ke: nhom B. */
+  var W = weights, sumW=0, sumW2=0;
+  for (i=0;i<n-1;i+=2){ sumW+=W[i]; sumW+=W[i+1]; sumW2+=W[i]; }
+  if (i<n){ sumW+=W[i]; sumW2+=W[i]; }
   /* --- Solver nhận biết null (2026-10-28, hạng mục A): khoảng null suy ra từ
        chính các điểm có trọng số 0 (aeCompute đã đặt W=0 trên [fLo,fHi] của
        mỗi null; aeWeight không bao giờ bằng 0 nên mọi đoạn W<=0 đều là null).
