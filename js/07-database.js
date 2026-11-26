@@ -89,14 +89,10 @@ function dbParseMeasurement(text, filename){
     }
     var delim = raw.indexOf("\t") >= 0 ? "\t" : (raw.indexOf(";") >= 0 ? ";" : (raw.indexOf(",") >= 0 ? "," : " "));
     var toks = (delim === " " ? raw.split(/\s+/) : raw.split(delim)).map(function(t){ return t.replace(/^"+|"+$/g, "").trim(); }).filter(function(t){ return t.length > 0; });
-    function isMalformedNumericToken(t){
-      return /^[+-]?(?:nan|inf(?:inity)?)$/i.test(t) || /^[+-]?(?:\d|\.\d)/.test(t);
-    }
-    if (toks.length < 2){ if (toks.length === 1 && isMalformedNumericToken(toks[0])) bad.push(li + 1); else skipped++; continue; }
+    if (toks.length < 2){ if (/[0-9]/.test(first)) bad.push(li + 1); else skipped++; continue; }
     function num(t){
-      if ((delim === ";" || delim === "\t" || delim === " ") && /^[+-]?\d+,\d+(?:[eE][+-]?\d+)?$/.test(t)) t = t.replace(",", ".");
-      if (!/^[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?$/.test(t)) return NaN;
-      return Number(t);
+      if ((delim === ";" || delim === "\t" || delim === " ") && /^-?\d+,\d+$/.test(t)) t = t.replace(",", ".");
+      return parseFloat(t);
     }
     var f = num(toks[0]), v = num(toks[1]);
     if (isFinite(f) && isFinite(v)){
@@ -109,7 +105,7 @@ function dbParseMeasurement(text, filename){
       else if (low.indexOf("spl") >= 0) headerKind = "squiglink";
       skipped++; continue;
     }
-    if (isMalformedNumericToken(toks[0]) || /^[+-]?(?:nan|inf(?:inity)?)$/i.test(toks[1])) bad.push(li + 1); else skipped++;
+    if (/[0-9]/.test(first)) bad.push(li + 1); else skipped++;
   }
   if (bad.length) throw new Error("Dòng dữ liệu không đọc được ở dòng: " + bad.slice(0, 8).join(", ") + (bad.length > 8 ? "…" : "") + " — file đo phải có 2 cột đầu là tần số (Hz) và SPL (dB).");
   if (pts.length < 8) throw new Error("Chỉ tìm thấy " + pts.length + " điểm đo hợp lệ (cần tối thiểu 8) — không nhận diện được dữ liệu đo trong file này.");
@@ -1321,6 +1317,7 @@ function hwSolve(freqs, errDb, W, P){
        số thập phân, maxBandDiff = 0, viol 0; aeBandCurve/lần giải 3280 ->
        460 (-86%); throughput 20 lần giải liên tiếp 88,2 -> 79,4 ms
        (nhanh hơn ~1,11x, mới nhanh hơn ở cả 6 vòng đo). --- */
+  /* (vong tu dong 20:24, huong A - AP DUNG, va code): inline he so RBJ trong objective/objectiveS cua hwSolve (port ky thuat aeSolveSingle 18:24 sang hwSolve, chua tung thu o hwSolve) - truoc day moi lan danh gia NM goi rbjCoeffs cap phat object {b0..a2} roi doc lai 5 truong; nay voi 3 ho peaking/lowshelf/highshelf (duy nhat HW_PROFILES dung) tinh thang b0..a2 vao bien cuc bo voi dung thu tu bieu thuc, dung kep/guard identity va phep chia chuan hoa cua rbjCoeffs (slopeS khong truyen nen dung alpha, fs = AE_FS) nen GIONG TUNG BIT; type khac roi ve rbjCoeffs goc. Lab Node tren ham that trich verbatim, file thuong noi lien (extract.py + harness_coeff/run_coeff + harness_hw + bench trong hidden_files/run_20261126_2024_A/lab/, 2 lan chay doc lap): parity he so 434112/434112 luoi + 20000/20000 fuzz GIONG TUNG BIT (Object.is; gom 12 type x freq/gain/Q/fs bien NaN/Infinity/-0/subnormal/1e308, gain 0, type la); parity tich hop hwSolve 40/40 fixture GIONG TUNG BIT ca 2 lan (bands/total; gom 4 profile x 5 dang err x co/khong vung null); toc do tinh he so rieng 1,75-2,55x (thang 21/21 va 13/21), toc do toan hwSolve paired-median 4 lan do: 1,0064x/1,0308x (11 vong) va 1,0219x/1,0295x (21 vong) - median duong moi lan. Khong cham solver/WASM/FIR/QA logic; aeV3 khong doi theo cau truc (khong cham aeSolve; gan nhat 468/482 ms ngay 2026-11-11). Bo dem lab-only van 12. Luot ke: nhom B. Lab: hidden_files/run_20261126_2024_A/lab/. */
   var hwBase = null, hwBi = -1;
   function objective(bi, trial){
     if (hwBi !== bi || !hwBase){
@@ -1329,8 +1326,42 @@ function hwSolve(freqs, errDb, W, P){
       hwBi = bi;
     }
     if (!freqs._cw || freqs._cw.length !== n || freqs._cwFs !== AE_FS) aeBandCurve(trial, freqs);
-    var cc = rbjCoeffs(trial.type, trial.freq, trial.gain, trial.q, AE_FS);
-    var b0=cc.b0, b1=cc.b1, b2=cc.b2, a1=cc.a1, a2=cc.a2;
+    var b0, b1, b2, a1, a2;
+    var _tt = trial.type;
+    if (_tt === "peaking" || _tt === "lowshelf" || _tt === "highshelf") {
+      var _tf = trial.freq, _tg = trial.gain, _tq = trial.q;
+      if (!isFinite(_tf) || !isFinite(_tg) || !isFinite(_tq) || !isFinite(AE_FS) || AE_FS <= 0) { b0=1;b1=0;b2=0;a1=0;a2=0; }
+      else {
+        _tf = Math.min(Math.min(22000, 0.495*AE_FS), Math.max(10, _tf));
+        _tg = Math.max(-30, Math.min(30, _tg));
+        _tq = Math.max(0.1, Math.min(30, _tq));
+        if (_tg === 0) { b0=1;b1=0;b2=0;a1=0;a2=0; }
+        else {
+          var _w0 = 2*Math.PI*_tf/AE_FS, _cw0 = Math.cos(_w0), _sw0 = Math.sin(_w0);
+          var _alpha = _sw0/(2*_tq);
+          var _A = Math.pow(10, _tg/40);
+          var _b0, _b1, _b2, _a0, _a1, _a2;
+          if (_tt === "peaking") {
+            _b0=1+_alpha*_A; _b1=-2*_cw0; _b2=1-_alpha*_A; _a0=1+_alpha/_A; _a1=-2*_cw0; _a2=1-_alpha/_A;
+          } else {
+            var _s = 2*Math.sqrt(_A)*_alpha;
+            if (_tt === "lowshelf") {
+              _b0=_A*((_A+1)-(_A-1)*_cw0+_s); _b1=2*_A*((_A-1)-(_A+1)*_cw0); _b2=_A*((_A+1)-(_A-1)*_cw0-_s);
+              _a0=(_A+1)+(_A-1)*_cw0+_s; _a1=-2*((_A-1)+(_A+1)*_cw0); _a2=(_A+1)+(_A-1)*_cw0-_s;
+            } else {
+              _b0=_A*((_A+1)+(_A-1)*_cw0+_s); _b1=-2*_A*((_A-1)+(_A+1)*_cw0); _b2=_A*((_A+1)+(_A-1)*_cw0-_s);
+              _a0=(_A+1)-(_A-1)*_cw0+_s; _a1=2*((_A-1)-(_A+1)*_cw0); _a2=(_A+1)-(_A-1)*_cw0-_s;
+            }
+          }
+          var _nb0=_b0/_a0, _nb1=_b1/_a0, _nb2=_b2/_a0, _na1=_a1/_a0, _na2=_a2/_a0;
+          if (!isFinite(_nb0+_nb1+_nb2+_na1+_na2)) { b0=1;b1=0;b2=0;a1=0;a2=0; }
+          else { b0=_nb0;b1=_nb1;b2=_nb2;a1=_na1;a2=_na2; }
+        }
+      }
+    } else {
+      var _ccFb = rbjCoeffs(trial.type, trial.freq, trial.gain, trial.q, AE_FS);
+      b0=_ccFb.b0; b1=_ccFb.b1; b2=_ccFb.b2; a1=_ccFb.a1; a2=_ccFb.a2;
+    }
     var C1=freqs._cw, S1=freqs._sw, C2=freqs._cw2, S2=freqs._sw2;
     var s = 0;
     for (var k2 = 0; k2 < n; k2++){
@@ -1351,8 +1382,42 @@ function objectiveS(bi, trial){
       hwBi = bi;
     }
     if (!freqs._cw || freqs._cw.length !== n || freqs._cwFs !== AE_FS) aeBandCurve(trial, freqs);
-    var cc = rbjCoeffs(trial.type, trial.freq, trial.gain, trial.q, AE_FS);
-    var b0=cc.b0, b1=cc.b1, b2=cc.b2, a1=cc.a1, a2=cc.a2;
+    var b0, b1, b2, a1, a2;
+    var _tt = trial.type;
+    if (_tt === "peaking" || _tt === "lowshelf" || _tt === "highshelf") {
+      var _tf = trial.freq, _tg = trial.gain, _tq = trial.q;
+      if (!isFinite(_tf) || !isFinite(_tg) || !isFinite(_tq) || !isFinite(AE_FS) || AE_FS <= 0) { b0=1;b1=0;b2=0;a1=0;a2=0; }
+      else {
+        _tf = Math.min(Math.min(22000, 0.495*AE_FS), Math.max(10, _tf));
+        _tg = Math.max(-30, Math.min(30, _tg));
+        _tq = Math.max(0.1, Math.min(30, _tq));
+        if (_tg === 0) { b0=1;b1=0;b2=0;a1=0;a2=0; }
+        else {
+          var _w0 = 2*Math.PI*_tf/AE_FS, _cw0 = Math.cos(_w0), _sw0 = Math.sin(_w0);
+          var _alpha = _sw0/(2*_tq);
+          var _A = Math.pow(10, _tg/40);
+          var _b0, _b1, _b2, _a0, _a1, _a2;
+          if (_tt === "peaking") {
+            _b0=1+_alpha*_A; _b1=-2*_cw0; _b2=1-_alpha*_A; _a0=1+_alpha/_A; _a1=-2*_cw0; _a2=1-_alpha/_A;
+          } else {
+            var _s = 2*Math.sqrt(_A)*_alpha;
+            if (_tt === "lowshelf") {
+              _b0=_A*((_A+1)-(_A-1)*_cw0+_s); _b1=2*_A*((_A-1)-(_A+1)*_cw0); _b2=_A*((_A+1)-(_A-1)*_cw0-_s);
+              _a0=(_A+1)+(_A-1)*_cw0+_s; _a1=-2*((_A-1)+(_A+1)*_cw0); _a2=(_A+1)+(_A-1)*_cw0-_s;
+            } else {
+              _b0=_A*((_A+1)+(_A-1)*_cw0+_s); _b1=-2*_A*((_A-1)+(_A+1)*_cw0); _b2=_A*((_A+1)+(_A-1)*_cw0-_s);
+              _a0=(_A+1)-(_A-1)*_cw0+_s; _a1=2*((_A-1)-(_A+1)*_cw0); _a2=(_A+1)-(_A-1)*_cw0-_s;
+            }
+          }
+          var _nb0=_b0/_a0, _nb1=_b1/_a0, _nb2=_b2/_a0, _na1=_a1/_a0, _na2=_a2/_a0;
+          if (!isFinite(_nb0+_nb1+_nb2+_na1+_na2)) { b0=1;b1=0;b2=0;a1=0;a2=0; }
+          else { b0=_nb0;b1=_nb1;b2=_nb2;a1=_na1;a2=_na2; }
+        }
+      }
+    } else {
+      var _ccFb = rbjCoeffs(trial.type, trial.freq, trial.gain, trial.q, AE_FS);
+      b0=_ccFb.b0; b1=_ccFb.b1; b2=_ccFb.b2; a1=_ccFb.a1; a2=_ccFb.a2;
+    }
     var C1=freqs._cw, S1=freqs._sw, C2=freqs._cw2, S2=freqs._sw2;
     var s = 0;
     for (var k2 = 0; k2 < n; k2 += 2){
