@@ -184,7 +184,11 @@ function upAverageRunsFast(runs, freqs, points, spreads){
        chuẩn đo SPL) là trung bình tuyến tính của 10^(dB/10) rồi đổi lại
        dB. Lệch 80/82 dB: số học cho 81,000 — năng lượng cho 81,115. */
     var s = 0; vals.forEach(function(v){ s += Math.pow(10, v / 10); });
-    var mean = 10 * Math.log10(s / vals.length), mn = Math.min.apply(null, vals), mx = Math.max.apply(null, vals);
+    /* (vòng tự động 05:54, hướng C — ÁP DỤNG, vá code): chống tràn/tràn dưới trong trung bình năng lượng của upAverageRuns (đường nhanh upAverageRunsFast + đường gốc) — trước đây Math.pow(10, v/10) tràn về Infinity khi v > ~3080 dB (kể cả cặp 3080/3080 dB) cho mean=Infinity, tràn dưới về 0 khi v < ~-3080 dB cho mean=-Infinity, và vùng subnormal (~-3082 dB trở xuống) mất chính xác (vd [-3200,-3200] cho -3200,0000483 thay vì đúng -3200); nay chỉ khi tổng s rơi ngoài vùng chuẩn (s < 2,2250738585072014e-308 hoặc s === Infinity) và max hữu hạn mới tính lại bằng phép dịch theo max (mx + 10*log10(Σ10^((v-mx)/10)/n)) — mọi đầu vào thường và các ca NaN/±Infinity giữ nguyên từng bit theo cấu trúc. Lab (hidden_files/run_20261127_0554_C/lab/, hàm trích verbatim bằng extract.py + make_new.py, 2 lần chạy độc lập): parity 318/318 GIỐNG TỪNG BIT (gồm fixture upSelfCheck1, fuzz 300 ca, đường nhanh >=64 tần số, NaN/±Infinity/-0/subnormal/biên tràn); cực đoan 10/10 đúng giá trị hữu hạn (3080/3080: Infinity->3080; 4000/4002: ->4001,1141; 1e308/50: ->1e308; -3200 pair: -3200,0000483->-3200; -10000/-9990: -Infinity->-9992,5964; 3100/-3200: ->3096,9897; đường nhanh 4000/4002: ->4001,1141); tốc độ đường thường paired-median 0,9809x (trung tính trong nhiễu, hàm chỉ gọi khi bấm nút). Không chạm solver/WASM/FIR/QA logic; aeV3 không đổi theo cấu trúc (không đo lại; gần nhất 468/482 ms ngày 2026-11-11). Lượt kế: nhóm D. */
+    var mn = Math.min.apply(null, vals), mx = Math.max.apply(null, vals), mean;
+    if (isFinite(s) && s >= 2.2250738585072014e-308) mean = 10 * Math.log10(s / vals.length);
+    else if ((s < 2.2250738585072014e-308 || s === Infinity) && isFinite(mx)){ var _s2 = 0, _vi; for (_vi = 0; _vi < vals.length; _vi++) _s2 += Math.pow(10, (vals[_vi] - mx) / 10); mean = mx + 10 * Math.log10(_s2 / vals.length); }
+    else mean = 10 * Math.log10(s / vals.length);
     points.push([f, mean]); spreads.push({ f: f, spread: mx - mn, n: vals.length });
   }
 }
@@ -220,7 +224,11 @@ function upAverageRuns(runs){
        chuẩn đo SPL) là trung bình tuyến tính của 10^(dB/10) rồi đổi lại
        dB. Lệch 80/82 dB: số học cho 81,000 — năng lượng cho 81,115. */
     var s = 0; vals.forEach(function(v){ s += Math.pow(10, v / 10); });
-    var mean = 10 * Math.log10(s / vals.length), mn = Math.min.apply(null, vals), mx = Math.max.apply(null, vals);
+    /* (vòng tự động 05:54, hướng C — ÁP DỤNG, vá code): chống tràn/tràn dưới trong trung bình năng lượng của upAverageRuns (đường nhanh upAverageRunsFast + đường gốc) — trước đây Math.pow(10, v/10) tràn về Infinity khi v > ~3080 dB (kể cả cặp 3080/3080 dB) cho mean=Infinity, tràn dưới về 0 khi v < ~-3080 dB cho mean=-Infinity, và vùng subnormal (~-3082 dB trở xuống) mất chính xác (vd [-3200,-3200] cho -3200,0000483 thay vì đúng -3200); nay chỉ khi tổng s rơi ngoài vùng chuẩn (s < 2,2250738585072014e-308 hoặc s === Infinity) và max hữu hạn mới tính lại bằng phép dịch theo max (mx + 10*log10(Σ10^((v-mx)/10)/n)) — mọi đầu vào thường và các ca NaN/±Infinity giữ nguyên từng bit theo cấu trúc. Lab (hidden_files/run_20261127_0554_C/lab/, hàm trích verbatim bằng extract.py + make_new.py, 2 lần chạy độc lập): parity 318/318 GIỐNG TỪNG BIT (gồm fixture upSelfCheck1, fuzz 300 ca, đường nhanh >=64 tần số, NaN/±Infinity/-0/subnormal/biên tràn); cực đoan 10/10 đúng giá trị hữu hạn (3080/3080: Infinity->3080; 4000/4002: ->4001,1141; 1e308/50: ->1e308; -3200 pair: -3200,0000483->-3200; -10000/-9990: -Infinity->-9992,5964; 3100/-3200: ->3096,9897; đường nhanh 4000/4002: ->4001,1141); tốc độ đường thường paired-median 0,9809x (trung tính trong nhiễu, hàm chỉ gọi khi bấm nút). Không chạm solver/WASM/FIR/QA logic; aeV3 không đổi theo cấu trúc (không đo lại; gần nhất 468/482 ms ngày 2026-11-11). Lượt kế: nhóm D. */
+    var mn = Math.min.apply(null, vals), mx = Math.max.apply(null, vals), mean;
+    if (isFinite(s) && s >= 2.2250738585072014e-308) mean = 10 * Math.log10(s / vals.length);
+    else if ((s < 2.2250738585072014e-308 || s === Infinity) && isFinite(mx)){ var _s2 = 0, _vi; for (_vi = 0; _vi < vals.length; _vi++) _s2 += Math.pow(10, (vals[_vi] - mx) / 10); mean = mx + 10 * Math.log10(_s2 / vals.length); }
+    else mean = 10 * Math.log10(s / vals.length);
     points.push([f, mean]); spreads.push({ f: f, spread: mx - mn, n: vals.length });
   });
   var maxSpread = 0, maxFreq = 0, sumSp = 0;
