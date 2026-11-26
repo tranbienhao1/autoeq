@@ -6415,11 +6415,12 @@ function hrtfSelectDirection(dirs, az, el){
         if (_dir && (typeof _dir === "object" || typeof _dir === "function")) HRTF_EL_TRIG.set(_dir, { el: _dir.elevation, s: _se, c: _coe });
       }
     }
-    var _cosD = Math.cos((az - _dir.azimuth) * r);
+    var _da = (az - _dir.azimuth) * r;
+    var _cosD = Math.cos(_da); /* (vòng tự động 19:24, hướng C — ÁP DỤNG, vá code): hoist góc lệch _da=(az-_dir.azimuth)*r MỘT lần mỗi hướng trong hrtfSelectDirection — trước đây biểu thức (az-_dir.azimuth)*r tính 2 lần mỗi hướng cải thiện (cos cho c, sin cho _sinD trong nhánh atan2) dù cùng toán hạng; nay tính một lần vào _da rồi dùng chung cho Math.cos và Math.sin — cùng double, cùng thứ tự nên kết quả GIỐNG TỪNG BIT theo cấu trúc. Khác hướng đã áp 00:54 (atan2 thay acos, không đổi biểu thức góc) — lượt này chỉ bỏ phép trừ/nhân lặp lại. Lab Node trên hàm thật trích verbatim (hidden_files/run_20261126_1924_C/lab/, 2 lần bench độc lập): parity 1500/1500 GIỐNG TỪNG BIT (Object.is trên index/dist + đồng nhất dir + loại lỗi; gồm lưới M=1/2/5/27/100/1000 × az/el biên/NaN/±Infinity/±0/1e308, mutation elevation/thay phần tử/push/pop, mảng đặc biệt null/rỗng/nguyên thủy/chuỗi số, 600 fuzz); tốc độ paired-median xen kẽ 15 vòng: lần 1 W1 M1000 1,0553x (14/15), W2 M27 1,0372x (14/15); lần 2 W1 1,0416x (14/15), W2 1,0267x (13/15), W3 M100 1,0388x (14/15), W4 far M1000 1,0435x (15/15) — cải thiện ổn định mọi workload cả 2 lần. Không chạm solver/WASM/FIR/QA logic; aeV3 không đổi theo cấu trúc (không đo lại; gần nhất 468/482 ms ngày 2026-11-11). Bộ đếm lab-only vẫn 12. Lượt kế: nhóm D. */
     var c = s1 * _se + c1 * _coe * _cosD;
     if (c > 1) c = 1; if (c < -1) c = -1;
     if (c > bestC){
-      var _sinD = Math.sin((az - _dir.azimuth) * r);
+      var _sinD = Math.sin(_da);
       var _y1 = _coe * _sinD, _y2 = c1 * _se - s1 * _coe * _cosD;
       d = Math.atan2(Math.sqrt(_y1 * _y1 + _y2 * _y2), c) / r;
       if (d < bd){ bd = d; best = i; bestC = c; }
