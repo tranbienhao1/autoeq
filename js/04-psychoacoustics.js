@@ -1270,8 +1270,9 @@ function loudGainsFor(listen, ref, fs){
   for (i=0;i<n;i++) g.push(0);
   var grid = ISO_FREQS.slice(), target = [];
   var _Lc = Math.max(0, Math.min(90, listen)), _Rc = Math.max(0, Math.min(90, ref));
-  var _Xl = Math.pow(10, 0.03*_Lc), _Xr = Math.pow(10, 0.03*_Rc);
-  for (i=0;i<grid.length;i++) target.push((isoSplIdxX(i, _Xl) - _Lc) - (isoSplIdxX(i, _Xr) - _Rc));
+  var _Lp = Math.max(0, Math.min(90, isFinite(_Lc) ? _Lc : 80)), _Rp = Math.max(0, Math.min(90, isFinite(_Rc) ? _Rc : 80)); /* (vòng tự động 02:54, hướng C — ÁP DỤNG, vá code): chuẩn hoá phon không hữu hạn về 80 trong loudGainsFor như isoSpl/isoCompDb/loudFitError — trước đây listen/ref = NaN/undefined/chuỗi rác cho _Lc/_Rc = NaN, target toàn NaN, maxT = 0 nên trả [0,0,0,0,0,0] dù isoCompDb(NaN,60,f) tương đương (80,60); nay mọi đầu vào hữu hạn cho _Lp===_Lc và _Rp===_Rc nên kết quả giống từng bit, chỉ các ca không hữu hạn nay trả đúng gains fallback 80 phon. */
+  var _Xl = Math.pow(10, 0.03*_Lp), _Xr = Math.pow(10, 0.03*_Rp);
+  for (i=0;i<grid.length;i++) target.push((isoSplIdxX(i, _Xl) - _Lp) - (isoSplIdxX(i, _Xr) - _Rp));
   var maxT = 0; for (i=0;i<target.length;i++) if (Math.abs(target[i]) > maxT) maxT = Math.abs(target[i]);
   if (maxT > 1e-9){
     var _ckA = [1,1,1,1,1,1];
