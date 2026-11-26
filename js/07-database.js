@@ -714,8 +714,8 @@ function dbScoreBase(q, name){
     if (_ce.toks.indexOf(tok) >= 0) score += 30;
     else if (nc.indexOf(tok) >= 0) score += 18;
     else {
-      var i = 0;
-      for (var j = 0; j < nc.length && i < tok.length; j++) if (nc.charCodeAt(j) === tok.charCodeAt(i)) i++; /* vòng tự động 13:54 nhóm D: charCodeAt thay charAt trong vòng subsequence của dbScore — so sánh mã ký tự (số) thay vì cấp phát chuỗi 1 ký tự mỗi ô; nc/tok đã chuẩn hoá về [a-z0-9 ] nên tương đương từng bit */
+      var i = 0, tc = tok.charCodeAt(0); /* vòng tự động 05:08 nhóm D: cache mã ký tự tok.charCodeAt(i) trong vòng subsequence của dbScoreBase — trước đây mỗi ô j đều gọi lại tok.charCodeAt(i) dù i chỉ đổi khi khớp; nay đọc MỘT lần rồi cập nhật khi i tăng (cùng toán hạng/thứ tự so sánh nên GIỐNG TỪNG BIT theo cấu trúc; tok không rỗng vì đã qua if (!tok) continue) */
+      for (var j = 0; j < nc.length && i < tok.length; j++) if (nc.charCodeAt(j) === tc){ i++; if (i < tok.length) tc = tok.charCodeAt(i); }
       if (i === tok.length) score += 8;
     }
   }
