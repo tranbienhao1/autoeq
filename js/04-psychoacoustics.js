@@ -6998,6 +6998,34 @@ function hrtfResample(x, from, to){
     xc = new Array(x.length);
     for (i = 0; i < x.length; i++) xc[i] = isFinite(x[i]) ? x[i] : 0;
   }
+  if (ratio >= 2){
+    /* (vòng tự động 21:46, hướng C): đường chống-alias cho downsample tỉ lệ >= 2 trong hrtfResample — trước đây Catmull-Rom thoái hoá thành decimation thuần ở tỉ lệ nguyên (tỉ lệ 2: p=i*2, f=0 luôn nên out[i]=x[2i], không lọc chống-alias nào; thành phần trên Nyquist của đầu ra alias toàn phần vào dải nghe được — đo với ground-truth đa sin: 96k->48k RMS sai 0,226 so với đáp án band-limited lý tưởng, ~39% RMS tín hiệu). Nay với ratio>=2 dùng nội suy windowed-sinc (Blackman, nửa-bề-rộng 16*ratio mẫu đầu vào = 16 mẫu phía đầu ra, tần số cắt = to/2) đánh giá trực tiếp tại p=i*ratio, chuẩn hoá theo tổng trọng số trong cửa sổ nên bảo toàn DC chính xác; mẫu không hữu hạn coi như 0 như hai đường còn lại. Trọng số kernel chỉ phụ thuộc phần phân số của p nên cache theo đúng double của frac (tỉ lệ nguyên: 1 kernel cho mọi mẫu) — cùng toán hạng nên kết quả giống từng bit với tính lại mỗi mẫu. Tỉ lệ < 2 giữ nguyên đường Catmull-Rom từng ký tự (đã kiểm chứng ở 08:17/18:20) nên mọi kết quả cũ ở dải đó giống từng bit. */
+    var _fc = 0.5 / ratio, _hw = 16 * ratio, _hwi = Math.ceil(_hw), _xc = new Array(x.length), _ai;
+    for (_ai = 0; _ai < x.length; _ai++) _xc[_ai] = isFinite(x[_ai]) ? x[_ai] : 0;
+    var _kernCache = {};
+    for (i = 0; i < n; i++){
+      p = i * ratio;
+      var _ip = Math.floor(p), _frac = p - _ip;
+      var _kern = _kernCache[_frac];
+      if (!_kern){
+        _kern = new Array(2 * _hwi + 1);
+        for (var _m = -_hwi; _m <= _hwi; _m++){
+          var _d = _m - _frac, _u = 2 * _fc * _d;
+          if (Math.abs(_d) > _hw){ _kern[_m + _hwi] = 0; continue; }
+          var _sinc = _u === 0 ? 1 : Math.sin(Math.PI * _u) / (Math.PI * _u);
+          var _t = _d / _hw;
+          var _win = 0.42 + 0.5 * Math.cos(Math.PI * _t) + 0.08 * Math.cos(2 * Math.PI * _t);
+          _kern[_m + _hwi] = 2 * _fc * _sinc * _win;
+        }
+        _kernCache[_frac] = _kern;
+      }
+      var _m0 = Math.max(-_hwi, Math.ceil(_frac - _hw), -_ip), _m1 = Math.min(_hwi, Math.floor(_frac + _hw), x.length - 1 - _ip);
+      var _s = 0, _wsum = 0;
+      for (var _mm = _m0; _mm <= _m1; _mm++){ var _wk = _kern[_mm + _hwi]; _s += _wk * _xc[_ip + _mm]; _wsum += _wk; }
+      out[i] = _wsum !== 0 ? _s / _wsum : 0;
+    }
+    return out;
+  }
   if (xc){
     for (i = 0; i < n; i++){
       p = i * ratio; i0 = Math.floor(p); f = p - i0;
