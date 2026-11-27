@@ -2993,31 +2993,43 @@ function _aePreserveGrid(freqs){
   _aePreserveGridCache = { freqs:freqs, xs:_xs, shs:_shs };
   return _aePreserveGridCache;
 }
+/* vòng tự động 17:54 nhóm A: hợp nhất hai vòng quét (dải tilt 500 Hz–8 kHz và
+   dải bass 50–150 Hz, rời rạc nhau) trong aePreserveFit thành một vòng duy nhất —
+   thứ tự cộng của từng accumulator giữ nguyên tuyệt đối nên kết quả bit-identical.
+   Lab: parity 432/432 bit-identical (Object.is, gồm NaN/Inf/-0/subnormal, lưới
+   cache + đường fallback, freqs rỗng/ngắn/sparse); bench paired-median xen kẽ
+   file thường 2 lần độc lập: W1 lưới-cache 1,034×/1,020× (17/21, 14/21 thắng),
+   W2 fallback 1,009×/1,014× (13/21, 15/21 thắng). */
 function aePreserveFit(freqs, errDb, weights){
   /* T: độ dốc LS có chặn trên 500 Hz–8 kHz; B: mức trung bình trên 50–150 Hz.
      Giải hệ 2×2: [T(x) T(s); B(x) B(s)] · [a;b] = [T(err); B(err)]. */
   var _pg = _aePreserveGrid(freqs);
   var sw=0, sx=0, sy=0, sxx=0, sxy=0, ss=0, sxs=0, i, w, x, sh, e;
+  var bw=0, be=0, bx=0, bs=0;
   for (i=0;i<freqs.length;i++){
-    if (freqs[i]<500 || freqs[i]>8000) continue;
-    e = errDb[i]; if (!isFinite(e)) continue;
-    w = weights ? weights[i] : 1; if (!(w>0) || !isFinite(w)) continue;
-    x = _pg ? _pg.xs[i] : Math.log2(freqs[i]/1000); sh = _pg ? _pg.shs[i] : aeBassShelfShape(freqs[i]);
-    sw += w; sx += w*x; sy += w*e; sxx += w*x*x; sxy += w*x*e; ss += w*sh; sxs += w*x*sh;
+    var _f = freqs[i];
+    if (!(_f<500 || _f>8000)){
+      e = errDb[i]; if (isFinite(e)){
+        w = weights ? weights[i] : 1; if ((w>0) && isFinite(w)){
+          x = _pg ? _pg.xs[i] : Math.log2(_f/1000); sh = _pg ? _pg.shs[i] : aeBassShelfShape(_f);
+          sw += w; sx += w*x; sy += w*e; sxx += w*x*x; sxy += w*x*e; ss += w*sh; sxs += w*x*sh;
+        }
+      }
+    }
+    if (!(_f<50 || _f>150)){
+      e = errDb[i]; if (isFinite(e)){
+        w = weights ? weights[i] : 1; if ((w>0) && isFinite(w)){
+          x = _pg ? _pg.xs[i] : Math.log2(_f/1000); sh = _pg ? _pg.shs[i] : aeBassShelfShape(_f);
+          bw += w; be += w*e; bx += w*x; bs += w*sh;
+        }
+      }
+    }
   }
   var denT = sw*sxx - sx*sx;
   if (!(sw>0) || !isFinite(denT) || Math.abs(denT) < 1e-12) return { tilt:0, bass:0 };
   var Te = (sw*sxy - sx*sy)/denT;
   var Tx = (sw*sxx - sx*sx)/denT; /* = 1 theo định nghĩa, tính tường minh để khỏi giả định */
   var Ts = (sw*sxs - sx*ss)/denT;
-  var bw=0, be=0, bx=0, bs=0;
-  for (i=0;i<freqs.length;i++){
-    if (freqs[i]<50 || freqs[i]>150) continue;
-    e = errDb[i]; if (!isFinite(e)) continue;
-    w = weights ? weights[i] : 1; if (!(w>0) || !isFinite(w)) continue;
-    x = _pg ? _pg.xs[i] : Math.log2(freqs[i]/1000); sh = _pg ? _pg.shs[i] : aeBassShelfShape(freqs[i]);
-    bw += w; be += w*e; bx += w*x; bs += w*sh;
-  }
   if (!(bw>0)) return { tilt:0, bass:0 };
   var Be = be/bw, Bx = bx/bw, Bs = bs/bw;
   var det = Tx*Bs - Ts*Bx;
