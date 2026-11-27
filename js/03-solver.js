@@ -303,7 +303,33 @@ function aeBandCurve(b, freqs, fs){
 function aeTotalCurve(bandList, freqs, fs){
   var tot=new Array(freqs.length).fill(0);
   var fsv = (typeof fs === "number" && isFinite(fs) && fs > 0) ? fs : AE_FS;
+  /* (vòng tự động 11:54, hướng A): bỏ qua band gain 0 ở 3 họ identity trong aeTotalCurve — rbjCoeffs trả identity {1,0,0,0,0} cho gain 0 (sau kẹp) ở peaking/lowshelf/highshelf nên đường cong đúng +0 từng điểm khi cache lượng giác hữu hạn; nay quét trước tìm band ứng viên, nếu có thì dựng cache đúng điều kiện gốc rồi kiểm tra 4 mảng trig hữu hạn, khi đạt mới bỏ qua các band đó (giữ nguyên thứ tự cộng của các band còn lại từ fill(0)); mọi trường hợp khác (cache lạnh/lệch fs/độ dài, trig chứa NaN/Infinity, band ngoài 3 họ, gain khác 0, mảng thưa, bandList không phải mảng) rơi về vòng gốc nguyên vẹn. Không tham chiếu biến ngoài mới (chỉ rbjCoeffs/AE_FS đã có trong AE_WORKER_SRC) nên parity Worker giữ nguyên. */
+  var _anyZero = false;
+  if (bandList && typeof bandList.length === "number"){
+    for (var _pi = 0; _pi < bandList.length; _pi++){
+      if (!(_pi in bandList)) continue;
+      var _pb = bandList[_pi];
+      if (_pb && _pb.gain === 0 && (_pb.type === "peaking" || _pb.type === "lowshelf" || _pb.type === "highshelf")){ _anyZero = true; break; }
+    }
+  }
+  var _rFin = !_anyZero;
+  if (_anyZero){
+    if (!freqs._cw || freqs._cw.length !== freqs.length || freqs._cwFs !== fsv){
+      var cw0 = new Float64Array(freqs.length), sw0 = new Float64Array(freqs.length), cw20 = new Float64Array(freqs.length), sw20 = new Float64Array(freqs.length);
+      for (var j0 = 0; j0 < freqs.length; j0++){
+        var w0 = 2 * Math.PI * freqs[j0] / fsv, cc0 = Math.cos(w0), ss0 = Math.sin(w0);
+        cw0[j0] = cc0; sw0[j0] = ss0; cw20[j0] = 2 * cc0 * cc0 - 1; sw20[j0] = 2 * ss0 * cc0;
+      }
+      freqs._cw = cw0; freqs._sw = sw0; freqs._cw2 = cw20; freqs._sw2 = sw20; freqs._cwFs = fsv;
+    }
+    var _C1 = freqs._cw, _S1 = freqs._sw, _C2 = freqs._cw2, _S2 = freqs._sw2;
+    _rFin = !!_C1 && !!_S1 && !!_C2 && !!_S2;
+    for (var _fi2 = 0; _rFin && _fi2 < freqs.length; _fi2++){
+      if (!isFinite(_C1[_fi2]) || !isFinite(_S1[_fi2]) || !isFinite(_C2[_fi2]) || !isFinite(_S2[_fi2])){ _rFin = false; break; }
+    }
+  }
   bandList.forEach(function(b){
+    if (_rFin && b && b.gain === 0 && (b.type === "peaking" || b.type === "lowshelf" || b.type === "highshelf")) return;
     var c = rbjCoeffs(b.type, b.freq, b.gain, b.q, fsv);
     if (!freqs._cw || freqs._cw.length !== freqs.length || freqs._cwFs !== fsv){
       var cw = new Float64Array(freqs.length), sw = new Float64Array(freqs.length), cw2 = new Float64Array(freqs.length), sw2 = new Float64Array(freqs.length);
