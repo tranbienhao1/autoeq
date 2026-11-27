@@ -1616,14 +1616,16 @@ function objectiveS(bi, trial){
   function lsRebalance(){
     var before = totalObjective();
     var saved = bands.map(function(b){ return { type: b.type, freq: b.freq, gain: b.gain, q: b.q }; });
+    /* (vong tu dong 17:05, huong A - AP DUNG, va code): khoi phuc tham chieu tot/curves khi lsRebalance bi tu choi thay vi tinh lai aeTotalCurve + curves.map - truoc day moi lan bi tu choi (do ~13,5% so lan goi trong lab) deu goi aeTotalCurve (m lan rbjCoeffs + m x n log10) va curves.map (m lan aeBandCurve) du tot/curves truoc lsGainStep da dong bo tung bit voi bands (bat bien duy tri tu khoi tao va moi lan nmBand chap nhan/tot recompute); lsGainStep khong dung toi curves va chi gan lai tot = mang moi (khong sua mang cu tai cho) nen luu tham chieu _svTot/_svCurves truoc khi goi va khoi phuc thang khi bi tu choi cho GIONG TUNG BIT theo cau truc (cung toan hang, cung thu tu cong tu +0 nhu aeTotalCurve; cache luong giac da duoc lsGainStep dung o guard dau vong). Lab Node tren ham that trich verbatim (extract.py + make_new.py + harness.js + bench.js trong hidden_files/run_20261127_1705_A/lab/, 2 lan bench doc lap): parity 93/93 GIONG TUNG BIT (Object.is sau tren bands/total + loai loi; gom 4 profile x 6 dang err, luoi 9/3/1/0, NaN/Infinity err/freq/W, W/P null, maxBands 0/1/2/24/32, notch/bandpass/lowpass-only, gainMin>0, tight gain, 30 fuzz) + determinism 4/4 + kiem chung bitwise identity tot/curves [true,true]; toc do khoi duong bi tu choi 4134,22 us -> 7,46 us/lan (~550x); ty le kich hoat bi tu choi 7/52 lan goi (13,5%); toan ham hwSolve trung tinh trong nhieu may chia se (file-bench rand median 1,0038x, control old-vs-old 0,9996x cho thay nhieu do +-40% nuot chuong loi ich ~1% toan ham) dung ky vong vi khoi chi ~4,1 ms/lan bi tu choi. Khong cham solver/WASM/FIR/QA logic; aeV3 khong doi theo cau truc (khong cham aeSolve; gan nhat 468/482 ms ngay 2026-11-11). Bo dem lab-only van 12. Luot ke: nhom B. */
+    var _svTot = tot, _svCurves = curves;
     lsGainStep(0.6);
     if (totalObjective() <= before + 1e-12){
       curves = bands.map(function(b){ return aeBandCurve(b, freqs); });
       return true;
     }
     bands.forEach(function(b, bi){ b.type = saved[bi].type; b.freq = saved[bi].freq; b.gain = saved[bi].gain; b.q = saved[bi].q; });
-    tot = aeTotalCurve(bands, freqs);
-    curves = bands.map(function(b){ return aeBandCurve(b, freqs); });
+    tot = _svTot;
+    curves = _svCurves;
     return false;
   }
   for (var pass = 0; pass < 3; pass++){
