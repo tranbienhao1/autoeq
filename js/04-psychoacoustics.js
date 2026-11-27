@@ -286,7 +286,23 @@ function isoPhonFromSpl(splDb, f){
     return ((_k0)*Math.log10(Af0)-lu0)*omft + ((_k1)*Math.log10(Af1)-lu1)*ft;
   } /* (vòng tự động 12:24, hướng C — ÁP DỤNG, vá code): hoist _k0=10/af0, _k1=10/af1 (af0/af1 cố định theo fi, phép chia thuần xác định nên tính MỘT lần đúng giá trị từng bit) và _Xm=X-ISO_POW_0072 (X dùng chung cho Af0/Af1 nên phép trừ tính MỘT lần mỗi lần gọi splAt) — cùng toán hạng/thứ tự nên mọi số double giống hệt bản gốc theo cấu trúc, chỉ bớt 78 phép chia + 39 phép trừ mỗi lần gọi ở đường chia đôi. Lab Node trên hàm thật trích verbatim (extract.py + harness.js + probe.js + bench.js trong hidden_files/run_20261123_1224/, 2 lần chạy độc lập): parity 13.824/13.824 GIỐNG TỪNG BIT cả 2 lần (Object.is, 0 lệch; lưới 1/48-oct, 29 tần số ISO ± epsilon, biên kẹp/NaN/Infinity/cực đoan, SPL dưới/trong/trên miền), đơn điệu 0 vi phạm; tốc độ paired-median xen kẽ 15 vòng W1 f=440 Hz: 1,0910x (15/15) và 1,0862x (15/15) — ổn định cả 2 lần; W2 f=1000 Hz đối chứng 0,9998x/0,9972x không đổi. Không chạm solver/WASM/FIR/QA; aeV3 không đổi theo cấu trúc (không đo lại; gần nhất 468/482 ms ngày 2026-11-11). Bộ đếm lab-only vẫn 12. */
   var lo = splAt(0), hi = splAt(90);
-  if (splDb < lo || splDb > hi) return isoPhonIdx(fi, splDb)*(1-ft) + isoPhonIdx(fi+1, splDb)*ft;
+  if (splDb < lo || splDb > hi){
+    /* (vòng tự động 12:24, hướng C — ÁP DỤNG, vá code): nghịch đảo chính xác ngoài miền [0,90] phon trong isoPhonFromSpl — trước đây nhánh ngoài miền nội suy tuyến tính giữa hai nghịch đảo lưới isoPhonIdx(fi)/isoPhonIdx(fi+1) nên sai tới 3,20 phon (518/1358 ca ngoài miền trên lưới 1/24-oct x độ lệch 0,25-20 dB vượt 0,05 phon; khứ hồi SPL qua công thức thuận không kẹp lệch tới 195,50 dB ở ca tệ nhất) dù hàm được thiết kế là nghịch đảo chính xác của isoSpl, và còn nhảy 0,162 phon tại biên [lo,hi] với bước SPL 2e-7 dB; nay chia đôi + cát tuyến cuối trên splAt (cùng biểu thức thuận, không kẹp phon) trong khung [-30,120] phon khi SPL có nghiệm trong khung — splAt đơn điệu không giảm theo p (trung bình có trọng số của hai đường cong lưới, mỗi đường tăng theo X=10^(0.03p) hoặc nằm sàn Af) nên chia đôi hội tụ đúng nghiệm; khi SPL nằm ngoài tầm splAt([-30,120]) (dưới sàn Af hoặc trên 120 phon) giữ nguyên phép nội suy tuyến tính cũ từng bit. Đường trong miền [lo,hi] và nhánh tần số lưới (ft===0/1) không đổi nên giống từng bit tuyệt đối; biên [lo,hi] nay liên tục (nhảy tối đa 4,2e-7 phon với bước 2e-7 dB). Lab Node trên hàm thật trích verbatim (extract.py + make_newA.py + harness4.js trong hidden_files/run_20261127_1224_C/lab/): parity trong miền + biên + tần số lưới (7351 ca) và ngoài miền không nghiệm (164 ca) GIỐNG TỪNG BIT; ngoài miền có nghiệm: sai số phon tối đa 3,20 -> 8,5e-14, khứ hồi SPL tối đa 195,50 dB -> 4,4e-8 dB (1308 ca); quét toàn dải SPL -170..200 dB x 97 tần số: 52417 ca tốt hơn, 275 ca khứ hồi kém hơn đều ở SPL -161,5..-14,6 dB (vùng sàn Af, vô nghĩa vật lý — ngưỡng nghe 0 phon ở 20 Hz đã là ~74 dB SPL), 6 vi phạm đơn điệu đều ở SPL <= -159 dB; tốc độ trong miền không đổi, ngoài miền 10,3 -> 62,0 us/gọi (hàm chỉ dùng cho tra cứu UI, 1 caller). Không chạm solver/WASM/FIR/QA logic; aeV3 không đổi theo cấu trúc (không đo lại; gần nhất 468/482 ms ngày 2026-11-11). Lượt kế: nhóm D. */
+    var _a2 = -30, _b2 = 120, _sa2 = splAt(_a2), _sb2 = splAt(_b2);
+    if (splDb >= _sa2 && splDb <= _sb2){
+      var _a = _a2, _b = _b2, _m, _s, _sa = _sa2, _sb = _sb2;
+      for (var _it = 0; _it < 60; _it++){
+        _m = 0.5*(_a+_b);
+        _s = splAt(_m);
+        if (_s < splDb){ _a = _m; _sa = _s; } else { _b = _m; _sb = _s; }
+        if (_b - _a < 1e-9) break;
+      }
+      var _r = _a + (splDb - _sa)*(_b - _a)/(_sb - _sa);
+      if (!(_r >= _a && _r <= _b)) _r = 0.5*(_a+_b);
+      return _r;
+    }
+    return isoPhonIdx(fi, splDb)*(1-ft) + isoPhonIdx(fi+1, splDb)*ft;
+  }
   var a = 0, b = 90, m, s, sa = lo, sb = hi;
   for (var it = 0; it < 60; it++){
     m = 0.5*(a+b);
