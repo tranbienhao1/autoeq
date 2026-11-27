@@ -841,17 +841,24 @@ function upRigCheck(measRig, targetId, targets){
 }
 /* (vòng tự động 06:54 ngày 2026-11-24, hướng C — ÁP DỤNG, vá code, bản đa file): gộp 8 vòng lặp trong upSolverReport thành MỘT vòng — trước đây dựng mảng errB/errA (1 vòng) rồi gọi rms() 4 lần và maxAbs() 2 lần, mỗi lần quét lại toàn bộ lưới tần số (6 vòng nữa); nay vòng duy nhất tính eB=tgt[i]-sm[i] và eA=tgt[i]-(sm[i]+total[i]) đúng biểu thức/thứ tự gốc (kể cả trước phép kiểm tra >10000 Hz nên hành vi ném lỗi giữ nguyên), tích lũy 6 bộ tổng RMS (sB/sA/sWB/sWA + đếm cB + tổng trọng số wsB/wsA) và 2 cực đại tuyệt đối (mxB/mfB, mxA/mfA) theo thứ tự i tăng dần — mỗi bộ tổng giữ nguyên thứ tự cộng của vòng riêng tương ứng nên mọi trường rmsBefore/rmsAfter/wrmsBefore/wrmsAfter/maxBefore/maxAfter GIỐNG TỪNG BIT theo cấu trúc (kể cả NaN/±Infinity/-0, trọng số rỗng/ngắn, lưới rỗng/toàn >10 kHz, bands/guard/clamped giữ nguyên). Lab (hidden_files/run_20261124_0654_C/, extract verbatim + harness.js + bench.js, 2 lần bench độc lập): parity 3111/3111 GIỐNG TỪNG BIT cả 2 lần (Object.is sâu; gồm fixture upSelfCheck3, lưới 241/481/881/2000 điểm có/không trọng số, bands/guard/clamped, biên 10000 Hz, trọng số 0/NaN/rỗng/ngắn, mảng thưa, sm/tgt null ném lỗi đúng loại cũ, quét đặc biệt 0/-0/NaN/±Infinity/1e308/subnormal ở mọi trường, chuỗi ép kiểu, 3000 fuzz); tốc độ paired-median xen kẽ 15 vòng: lần 1 W1 grid241 5,5059x (15/15), W2 grid881 5,6106x (15/15), W3 grid241+w 5,8569x (15/15), W4 grid881+w 6,6009x (15/15); lần 2 W1 5,5378x (15/15), W2 5,4726x (15/15), W3 6,2586x (15/15), W4 6,2244x (15/15) — cải thiện ổn định mọi workload cả 2 lần. Không chạm solver/WASM/FIR/QA logic; aeV3 không đổi theo cấu trúc (không đo lại; gần nhất 468/482 ms ngày 2026-11-11). QA trình duyệt đầy đủ chưa chạy được trên VM (headless Chrome bị chặn Hatch WebGL). Lượt kế: nhóm D. --- */
 function upSolverReport(args){
+  /* (vòng tự động 05:09, hướng C — ÁP DỤNG, vá code): tổng bù Kahan cho 4 bộ tích lũy RMS (sB/sA/sWB/sWA) trong upSolverReport — trước đây cộng dồn thuần các bình phương sai số theo i tăng dần nên sai số tích lũy O(n·ε) khi dải động rộng; nay mỗi bộ tích lũy dùng biến bù (_cB/_cA/_cWB/_cWA) với đúng thứ tự cộng và đúng biểu thức số hạng, kèm reset comp về 0 khi tổng chạm Inf/NaN (tổng bình phương không bao giờ âm nên `s < Infinity` phân biệt đúng ca hữu hạn; ca không hữu hạn/tràn rơi về ngữ nghĩa cộng thuần từng bit). Lab Node trên hàm thật trích verbatim (hidden_files/run_20261128_0454_C/lab/, tham chiếu chính xác BigInt): fixture đối kháng K1 (số hạng 1e8 trước, 219 số hạng 1.0 sau) sai số RMS 7,26e-8 -> 9,31e-10 dB (78x); K2 1,78e-14 -> 3,55e-15 và 1,42e-14 -> 0; fixture thực tế K3 không hồi quy (0/0 và 4,44e-16 -> 0); quét 200 fixture đối kháng: thắng 97/111, thua 12/18 (mức ulp), hòa còn lại; parity không hữu hạn 3000/3000 GIỐNG TỪNG BIT (NaN/±Infinity/tràn/subnormal, gồm trọng số ±Infinity); upSelfCheck3 12/12 PASS giống hệt cả hai bản. Tốc độ: VM throttled đo biến thể có nhánh chậm ~2,9x do chi phí nhánh bị phóng đại trong môi trường này (biến thể Kahan thuần không nhánh đo 0,99x); chi phí tuyệt đối ~0,25 ms/lần gọi báo cáo (gọi 1 lần/báo cáo solver) — chấp nhận đổi lấy độ chính xác. Không chạm solver/WASM/FIR/QA logic; aeV3 không đổi theo cấu trúc (không đo lại; gần nhất 468/482 ms ngày 2026-11-11). QA trình duyệt đầy đủ chưa chạy được trên VM (headless Chrome bị chặn Hatch WebGL). Lượt kế: nhóm D. */
   args = args || {};
   var freqs = args.freqs || [], sm = args.sm || [], tgt = args.tgt || [], total = args.total || [];
   var weights = args.weights || null;
   var sB = 0, sA = 0, cB = 0, sWB = 0, wsB = 0, sWA = 0, wsA = 0, mxB = 0, mfB = 0, mxA = 0, mfA = 0;
+  var _cB = 0, _cA = 0, _cWB = 0, _cWA = 0;
   for (var i = 0; i < freqs.length; i++){
     var eB = tgt[i] - sm[i], eA = tgt[i] - (sm[i] + total[i]);
     if (freqs[i] > 10000) continue;
-    sB += eB * eB; sA += eA * eA; cB++;
+    { var _qB = eB*eB; var _kyB = _qB - _cB; var _ktB = sB + _kyB; _cB = (_ktB - sB) - _kyB; sB = _ktB; if (!(sB < Infinity)) _cB = 0; }
+    { var _qA = eA*eA; var _kyA = _qA - _cA; var _ktA = sA + _kyA; _cA = (_ktA - sA) - _kyA; sA = _ktA; if (!(sA < Infinity)) _cA = 0; }
+    cB++;
     if (weights){
       var wi = weights[i];
-      sWB += wi * eB * eB; wsB += wi; sWA += wi * eA * eA; wsA += wi;
+      { var _qWB = wi*eB*eB; var _kyWB = _qWB - _cWB; var _ktWB = sWB + _kyWB; _cWB = (_ktWB - sWB) - _kyWB; sWB = _ktWB; if (!(sWB < Infinity)) _cWB = 0; }
+      wsB += wi;
+      { var _qWA = wi*eA*eA; var _kyWA = _qWA - _cWA; var _ktWA = sWA + _kyWA; _cWA = (_ktWA - sWA) - _kyWA; sWA = _ktWA; if (!(sWA < Infinity)) _cWA = 0; }
+      wsA += wi;
     }
     var aB = Math.abs(eB); if (aB > mxB){ mxB = aB; mfB = freqs[i]; }
     var aA = Math.abs(eA); if (aA > mxA){ mxA = aA; mfA = freqs[i]; }
