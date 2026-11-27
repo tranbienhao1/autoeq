@@ -3469,10 +3469,16 @@ var AE_PHONE_GROUPS = [
   { key:"sample", label:"Tai nghe mẫu kiểm chứng — Giai đoạn 2" },
   { key:"user", label:"Tai nghe của bạn — thêm qua file đo" }
 ];
+/* --- vòng tự động 05:39 nhóm D (bản đa file): cache số đếm nhóm tăng dần trong aePhoneCountLine — ÁP DỤNG, vá code. aeRegisterPhone gọi aeRenderPhoneSelect -> aePhoneCountLine cho MỌI mục đăng ký, kể cả vòng đăng ký bulk ~5.000 mục DB_PHONES lúc nạp trang (AE_REG_BULK=true chặn dựng lại danh sách nhưng KHÔNG chặn aePhoneCountLine) — trước đây mỗi lần gọi đều Object.keys(AE_PHONES) + quét toàn bộ registry (O(n) mỗi lần, tổng O(n²) ≈ 12,5M lượt duyệt + 5.000 mảng cấp phát lúc nạp trang). Nay số đếm {db,sample,user} được quét MỘT lần lười (lần gọi đầu, đúng biểu thức quét gốc từng toán hạng) rồi duy trì tăng dần trong aeRegisterPhone (ghi đè: trừ nhóm cũ, cộng nhóm mới; đăng ký lại cùng nhóm: trừ rồi cộng, ròng 0) — chuỗi textContent giữ nguyên từng ký tự, mọi số đếm GIỐNG TỪNG BIT theo cấu trúc. AE_PHONES chỉ được ghi qua aeRegisterPhone và vòng mẫu aeInit (đã kiểm chứng grep toàn bộ js/: 2 điểm ghi duy nhất, không delete; vòng mẫu chạy trước lần gọi aePhoneCountLine đầu nên quét lười đếm đúng). Khác hướng đã bác: gộp dedup+map trong dbParseMeasurement (04:13 hôm nay) — lượt này không đụng dbParseMeasurement, chỉ đổi cách đếm nhóm trong aePhoneCountLine/aeRegisterPhone. Lab (hidden_files/run_20261128_0513_D/lab/, hàm trích verbatim bằng extract.py + make_new.py + harness.js + bench.js, 2 lần bench độc lập): parity 1106/1106 GIỐNG TỪNG BIT (đăng ký cơ bản 5 nhóm + biên null/thiếu id, ghi đè đổi nhóm, mô phỏng aeInit ghi trực tiếp, bulk 5000 mục + ghi đè sau bulk, mục null khi cache chưa khởi tạo ném đúng TypeError, fuzz 300 thao tác; kiểm tra nhất quán cache vs quét toàn bộ sau mỗi dãy); tốc độ paired-median xen kẽ 15 vòng — W1 bulk 5000 lần 1 273,98x (15/15, 6403,34ms -> 23,37ms), lần 2 294,67x (15/15, 6361,38ms -> 21,59ms); W2 đếm lặp 2000x5000 lần 1 1280,79x (15/15), lần 2 1303,26x (15/15); control old/old 0,9969x/1,0029x (nhiễu). Không chạm solver/WASM/FIR/QA logic; aeV3 không đổi theo cấu trúc (không chạm solver; gần nhất 468/482 ms ngày 2026-11-11). QA trình duyệt đầy đủ chưa chạy được trên VM (headless Chrome bị chặn Hatch WebGL). Lượt kế: nhóm A. --- */
+var _aePhoneCounts = null;
 function aePhoneCountLine(){
   var el = $("aePhoneCount"); if (!el) return;
-  var n = { db:0, sample:0, user:0 };
-  Object.keys(AE_PHONES).forEach(function(id){ n[AE_PHONES[id].group] = (n[AE_PHONES[id].group]||0)+1; });
+  if (!_aePhoneCounts){
+    var _c = { db:0, sample:0, user:0 };
+    Object.keys(AE_PHONES).forEach(function(id){ _c[AE_PHONES[id].group] = (_c[AE_PHONES[id].group]||0)+1; });
+    _aePhoneCounts = _c;
+  }
+  var n = _aePhoneCounts;
   var tot = n.db + n.sample + n.user;
   el.textContent = "Danh sách tai nghe hiện có: "+tot+" mục — "+n.db+" tai nghe dữ liệu đo thật (kho AutoEq đóng gói trong app, đã qua kiểm định) · "+n.sample+" tai nghe mẫu kiểm chứng (Giai đoạn 2) · "+n.user+" tai nghe bạn đã thêm. Danh sách có sẵn ngay khi mở trang và được giữ nguyên sau mỗi lần chạy kiểm chứng/QA.";
 }
@@ -3606,6 +3612,11 @@ function aeShowSelectedPhone(){
 }
 function aeRegisterPhone(p){
   if (!p || !p.id) return null;
+  if (_aePhoneCounts){
+    var _old = AE_PHONES[p.id];
+    if (_old) _aePhoneCounts[_old.group] = (_aePhoneCounts[_old.group]||0)-1;
+    _aePhoneCounts[p.group] = (_aePhoneCounts[p.group]||0)+1;
+  }
   AE_PHONES[p.id] = p;
   aeRenderPhoneSelect();
   return p;
