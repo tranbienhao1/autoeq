@@ -878,7 +878,24 @@ function fft(re, im, invert){
    Ý tưởng lượt kế: hướng C — rà soát isoPhonFromSpl trên lưới phon (ý tưởng
    treo từ 13:08/20:19); hoặc hướng D — đo measureFps/specDraw trên phổ thật. --- */
 /* (vòng tự động 18:54, hướng B — ÁP DỤNG, vá code): kẹp mẫu số/tỉ lệ trong vòng bin của buildFirTaps bằng Math.max thay cho ternary + kiểm tra NaN — _den>1e-24?_den:(_den===_den?1e-24:NaN) tương đương Math.max(1e-24,_den) và _r>1e-18?_r:(_r===_r?1e-18:NaN) tương đương Math.max(1e-18,_r) trên mọi double (kể cả NaN/±Infinity/-0/subnormal, kiểm chứng scalar + parity 301/301 trên buildFirTaps thật), áp cho cả vòng band và vòng psycho; thứ tự tính nr/ni/dr/di và phép nhân lin giữ nguyên từng toán hạng nên taps GIỐNG TỪNG BIT theo cấu trúc. Khác hướng đã bác: hoist fs/N (14:54, lệch bit ở fs cực đoan + nhiễu bench) — lượt này không đổi cách tính tần số bin, chỉ đổi dạng kẹp đã tương đương toán học. Lab: hidden_files/run_20261124_1854_B/. */
+/* (vòng tự động 21:42, hướng B — ÁP DỤNG, vá code): memoize kết quả buildFirTaps theo lần gọi cuối (FIR_TAPS_LAST) — ở chế độ FIR, mọi updateAll(true) (kéo pre-amp/volume/bypass, đổi preset không đổi band...) đều gọi pushFir -> buildFirTaps (2049 bin + FFT 4096, ~1 ms) dù hệ số band/psycho không đổi; nay nếu fs/L và danh sách hệ số hiệu lực (bandCoeffs cho band đang bật — bandCoeffs giữ nguyên tham chiếu khi tham số không đổi, null cho band tắt/gain 0) + tham chiếu psychoCoeffs(fs) (PSY_CC giữ nguyên tham chiếu khi trạng thái psycho không đổi) khớp lần gọi trước thì trả lại đúng object taps đã tính. Hai caller duy nhất (pushFir gửi qua postMessage = clone; QA partitioned-convolution chỉ đọc taps[k]) không mutate taps nên trả lại đúng object là an toàn. Mọi trường hợp khác (đổi band/fs/L/psycho/số band) tính lại như cũ; lỗi khi dựng khóa (vd band null) rơi về đường gốc nguyên vẹn (ném đúng TypeError như cũ). Lab Node trên hàm thật trích verbatim (hidden_files/run_20261127_2129_B/lab/, 2 lần bench độc lập): parity 240/240 GIỐNG TỪNG BIT (Buffer taps; gồm 10/20 band, psycho bật/tắt/bypass, fs 0/NaN/Infinity/âm, L 0/1/2/255..4097, cực đoan NaN/±Infinity/-0/subnormal/1e308, đổi gain rồi đổi lại, đổi số band, 60 fuzz ×3 bước, null-band ném đúng TypeError, ngữ cảnh thiếu PSY 3/3) + kiểm tra identity (lặp lại trả đúng object, đổi trạng thái trả object mới); tốc độ paired-median xen kẽ 15 vòng: hit 813x/777x thắng 15/15 cả 2 lần, hit20 947x/945x thắng 15/15, mixed 1,97x/2,00x thắng 15/15, miss (đổi gain mỗi lần) 0,992x/0,998x trung tính trong nhiễu (control old/old 0,995x/1,010x — không hồi quy đường kéo node). Không chạm solver/WASM/FIR/QA logic; aeV3 không đổi theo cấu trúc (không đo lại; gần nhất 468/482 ms ngày 2026-11-11). QA trình duyệt đầy đủ chưa chạy được trên VM (headless Chrome bị chặn Hatch WebGL). Lượt kế: nhóm C. */
 function buildFirTaps(fs, L){
+  var _fcRefs = null, _fcPsy = null, _fcOk = false;
+  try {
+    var _nB = bands.length;
+    var _refs = new Array(_nB);
+    for (var _ci = 0; _ci < _nB; _ci++){
+      var _b = bands[_ci];
+      _refs[_ci] = (_b.on && _b.gain !== 0) ? bandCoeffs(_ci, fs) : null;
+    }
+    var _psyRef = (typeof PSY !== "undefined" && PSY && !PSY.bypassAll && typeof psychoDbAt === "function") ? psychoCoeffs(fs) : null;
+    _fcRefs = _refs; _fcPsy = _psyRef; _fcOk = true;
+    if (FIR_TAPS_LAST && FIR_TAPS_LAST.fs === fs && FIR_TAPS_LAST.L === L && FIR_TAPS_LAST.psyRef === _psyRef && FIR_TAPS_LAST.refs.length === _refs.length){
+      var _same = true;
+      for (var _cj = 0; _cj < _refs.length; _cj++) if (FIR_TAPS_LAST.refs[_cj] !== _refs[_cj]){ _same = false; break; }
+      if (_same) return FIR_TAPS_LAST.taps;
+    }
+  } catch (e) {}
   var N=4096, re=new Float64Array(N), im=new Float64Array(N), k, f, i;
   var nB=bands.length, cc=new Array(nB), act=new Array(nB);
   for (i=0;i<nB;i++){ act[i]=bands[i].on && bands[i].gain!==0; cc[i]=act[i]?bandCoeffs(i,fs):null; }
@@ -932,6 +949,7 @@ function buildFirTaps(fs, L){
     taps[i2]=re[idx]*win;
     var _nwc=_wcw*_cwd-_wsw*_swd; _wsw=_wsw*_cwd+_wcw*_swd; _wcw=_nwc;
   }
+  if (_fcOk) FIR_TAPS_LAST = { fs: fs, L: L, refs: _fcRefs, psyRef: _fcPsy, taps: taps };
   return taps;
 }
 /* --- Mở rộng 2026-11-23 (vòng tự động 20:07, hướng B — BÁC BỎ, KHÔNG vá code, chỉ thêm comment này): Lượt nhóm B (sau A 19:59, BÁC BỎ). File Drive tải về (fileId 1TAhnChBQPRlbsrMUOhq5ZF3tHWHGIvbi, sửa 20:00:27+07, 6.246.159 byte / 25.322 dòng, md5 d0b8338e6c23eaf691cc205a7ce18771, version 305) khớp từng byte bản cục bộ — không có thay đổi ngoài; backup pre-download/pre-B lưu tại ~/workspace/autoeq/backups/*2026-11-23_2004*. Ứng viên B duy nhất: gộp vòng band+psycho trong buildFirTaps thành MỘT vòng duy nhất trên mảng hệ số phẳng nối tiếp (allB0..allA2 = actB.. nối tiếp psyB.., khi không có psycho tham chiếu thẳng actB..) — vòng trong k chỉ còn một vòng lặp thay vì vòng band + nhánh/vòng psycho, mỗi phần tử vẫn tính đúng biểu thức nr/ni/dr/di + kẹp _denC/_r + lin*= như cũ nên thứ tự nhân lin và mọi double giống hệt theo cấu trúc. Lab Node trên hàm thật trích verbatim (extract.py + make_new.py + harness.js + bench.js trong hidden_files/run_20261123_2004_B/, 2 lần bench độc lập): parity 22/22 scenario GIỐNG TỪNG BIT cả 2 lần (so sánh Buffer taps; gồm 10/20 band, +psycho 7, bypass, 0 band, band tắt/gain 0, cực đoan NaN/±Inf/-0/subnormal/1e308, fs 8000/44100/48000/96000/192000/0/NaN/Inf, L 0/1/2/255/511/1023/4097, null coeff ném TypeError đúng loại cũ); tốc độ paired-median xen kẽ 15 vòng trên buildFirTaps 20 band + psycho, L=1023: lần 1 median 0,9311x thắng 0/15, lần 2 median 0,9308x thắng 3/15 — bản mới CHẬM HƠN ổn định cả 2 lần (chi phí concat mảng phẳng + vòng dài hơn không bù được việc bỏ một vòng lặp, ngược với mô phỏng vòng cô lập) → BÁC, không vá code. Không thử lại hướng gộp vòng band+psycho trong buildFirTaps. Không chạm solver/WASM/FIR/QA logic; aeV3 không đổi theo cấu trúc (không đo lại; gần nhất 468/482 ms ngày 2026-11-11). Bộ đếm lab-only vẫn 12. Lượt kế: nhóm C. Lab: hidden_files/run_20261123_2004_B/. --- */
