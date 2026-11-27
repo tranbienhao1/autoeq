@@ -1489,7 +1489,9 @@ function aeSolve(freqs, errDb, weights, nBands, anchorShelf, fs, seedBands){
       var c9c = aeSolveSingle(freqs, errDb, weights, nBands, pickLam, 32, rc, pickShelf, c9Before.bands, anchorShelf, undefined, fsv);
       ms += c9c.ms;
       var o9c = aeSolveObjective(c9c.bands, c9c.total, errDb, weights, rc);
-      if (o9c < pickObj && aeRmsLocal(c9c.total) <= pickRms() && aeRmsLocal(c9c.total) < c9AfterRms){ pick = c9c; pickObj = o9c; }
+      /* (vong tu dong 15:05, huong A): tinh RMS ung vien MOT lan trong 5 dieu kien fallback cua aeSolve (c9c/c10f/c11f/c12f/c13f) - truoc day aeRmsLocal(cXt.total) duoc goi 2 lan trong cung mot bieu thuc dieu kien du aeRmsLocal thuan (doc errDb/freqs/total, khong dot bien) va khong co gi giua 2 lan goi; nay tinh mot lan vao _rXt (chi khi oXt < pickObj, giu nguyen ngu nghia ngan mach) roi dung lai cho ca 2 phep so sanh nen moi quyet dinh chap nhan/tu choi va ket qua cuoi GIONG TUNG BIT theo cau truc; khi phep so sanh dau that bai ban cu cung chi tinh 1 lan nen khong ton hon. Khong tham chieu bien ngoai moi (chi aeRmsLocal/pickRms da co trong AE_WORKER_SRC) nen parity Worker giu nguyen. */
+      var _r9c = (o9c < pickObj) ? aeRmsLocal(c9c.total) : 0;
+      if (o9c < pickObj && _r9c <= pickRms() && _r9c < c9AfterRms){ pick = c9c; pickObj = o9c; }
       ssNote(c9c, 32, pick === c9c);
     }
   }
@@ -1530,7 +1532,8 @@ function aeSolve(freqs, errDb, weights, nBands, anchorShelf, fs, seedBands){
       var c10f = aeSolveSingle(freqs, errDb, weights, nBands, pickLam, 48, rc, pickShelf, c10Before.bands, anchorShelf, undefined, fsv);
       ms += c10f.ms;
       var o10f = aeSolveObjective(c10f.bands, c10f.total, errDb, weights, rc);
-      if (o10f < pickObj && aeRmsLocal(c10f.total) <= pickRms() && aeRmsLocal(c10f.total) < c10AfterRms){ pick = c10f; pickObj = o10f; }
+      var _r10f = (o10f < pickObj) ? aeRmsLocal(c10f.total) : 0;
+      if (o10f < pickObj && _r10f <= pickRms() && _r10f < c10AfterRms){ pick = c10f; pickObj = o10f; }
       ssNote(c10f, 48, pick === c10f);
     }
   }
@@ -1570,7 +1573,8 @@ function aeSolve(freqs, errDb, weights, nBands, anchorShelf, fs, seedBands){
       var c11f = aeSolveSingle(freqs, errDb, weights, nBands, pickLam, 64, rc, pickShelf, c11Before.bands, anchorShelf, undefined, fsv);
       ms += c11f.ms;
       var o11f = aeSolveObjective(c11f.bands, c11f.total, errDb, weights, rc);
-      if (o11f < pickObj && aeRmsLocal(c11f.total) <= pickRms() && aeRmsLocal(c11f.total) < c11AfterRms){ pick = c11f; pickObj = o11f; }
+      var _r11f = (o11f < pickObj) ? aeRmsLocal(c11f.total) : 0;
+      if (o11f < pickObj && _r11f <= pickRms() && _r11f < c11AfterRms){ pick = c11f; pickObj = o11f; }
       ssNote(c11f, 64, pick === c11f);
     }
   }
@@ -1611,7 +1615,8 @@ function aeSolve(freqs, errDb, weights, nBands, anchorShelf, fs, seedBands){
       var c12f = aeSolveSingle(freqs, errDb, weights, nBands, pickLam, 80, rc, pickShelf, c12Before.bands, anchorShelf, undefined, fsv);
       ms += c12f.ms;
       var o12f = aeSolveObjective(c12f.bands, c12f.total, errDb, weights, rc);
-      if (o12f < pickObj && aeRmsLocal(c12f.total) <= pickRms() && aeRmsLocal(c12f.total) < c12AfterRms){ pick = c12f; pickObj = o12f; }
+      var _r12f = (o12f < pickObj) ? aeRmsLocal(c12f.total) : 0;
+      if (o12f < pickObj && _r12f <= pickRms() && _r12f < c12AfterRms){ pick = c12f; pickObj = o12f; }
       ssNote(c12f, 80, pick === c12f);
     }
   }
@@ -1651,7 +1656,8 @@ function aeSolve(freqs, errDb, weights, nBands, anchorShelf, fs, seedBands){
       var c13f = aeSolveSingle(freqs, errDb, weights, nBands, pickLam, 96, rc, pickShelf, c13Before.bands, anchorShelf, undefined, fsv);
       ms += c13f.ms;
       var o13f = aeSolveObjective(c13f.bands, c13f.total, errDb, weights, rc);
-      if (o13f < pickObj && aeRmsLocal(c13f.total) <= pickRms() && aeRmsLocal(c13f.total) < c13AfterRms){ pick = c13f; pickObj = o13f; }
+      var _r13f = (o13f < pickObj) ? aeRmsLocal(c13f.total) : 0;
+      if (o13f < pickObj && _r13f <= pickRms() && _r13f < c13AfterRms){ pick = c13f; pickObj = o13f; }
       ssNote(c13f, 96, pick === c13f);
     }
   }
