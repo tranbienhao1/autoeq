@@ -40,20 +40,37 @@ function updateAll(pushAudio){
    neu khong doi). Khong co ket qua solve nao (AE.lastIdx chua co) thi giu nguyen
    placeholder. */
 var AE_BAND_SIG = "";
+/* --- vòng tự động 14:24 nhóm D (bản đa file): so sánh chữ ký dạng mảng phẳng trong syncAeBandTable — ÁP DỤNG, vá code. Trước đây syncAeBandTable dựng toàn bộ HTML (fmtFreq/fmtDb/toFixed cho mọi band) rồi mới so sánh chữ ký chuỗi, nên mỗi lần updateAll đều tốn công dựng bảng dù bảng không đổi. Nay chữ ký lưu dạng mảng phẳng [n, type0,freq0,gain0,q0, ...] và so sánh từng trường (===, NaN coi bằng NaN) trước khi dựng HTML: khi không đổi return ngay, khi đổi dựng HTML đúng biểu thức gốc từng toán hạng nên DOM và số lần ghi GIỐNG TỪNG BIT với bản cũ cho mọi giá trị thực tế (kể cả NaN/±Infinity/-0: String(-0)===String(0) và -0===0, NaN được xử lý riêng). Lab (hidden_files/run_20261127_1424_D/lab/, hàm trích verbatim + harness, 2 lần bench độc lập): parity 327/327 GIỐNG TỪNG BIT (gồm đổi band/số band/lastIdx null, NaN/±Inf/-0, 300 fuzz); tốc độ paired-median xen kẽ 9 vòng × 5000 lần — lần 1 không đổi 8,69× / đổi mỗi lần 1,167× / hỗn hợp 5,29× (thắng 9/9 mọi workload), lần 2 không đổi 8,16× / đổi 1,135× (thắng 8/9) / hỗn hợp 4,65×. Không chạm solver/WASM/FIR/QA logic; aeV3 không đổi theo cấu trúc (không đo lại; gần nhất 468/482 ms ngày 2026-11-11). QA trình duyệt đầy đủ chưa chạy được trên VM (headless Chrome bị chặn Hatch WebGL). Lượt kế: nhóm A. --- */
 function syncAeBandTable(){
   var t = $("aeBandTable");
   if (!t || !AE.lastIdx) return;
+  var n = bands.length;
+  var vals = AE_BAND_SIG;
+  var same = vals && vals.length === 1 + n*4;
+  if (same){
+    for (var k=0;k<n;k++){
+      var b = bands[k];
+      var o = 1 + k*4;
+      var v;
+      v = vals[o]; if (v !== b.type && !(v !== v && b.type !== b.type)){ same = false; break; }
+      v = vals[o+1]; if (v !== b.freq && !(v !== v && b.freq !== b.freq)){ same = false; break; }
+      v = vals[o+2]; if (v !== b.gain && !(v !== v && b.gain !== b.gain)){ same = false; break; }
+      v = vals[o+3]; if (v !== b.q && !(v !== v && b.q !== b.q)){ same = false; break; }
+    }
+  }
+  if (same) return;
   var idx = AE.lastIdx, sameLen = (bands.length === idx.length);
   var rows = '<tr><th>Band → Engine</th><th>Loại</th><th>Fc</th><th>Gain</th><th>Q</th></tr>';
-  var sig = bands.length+"|";
-  for (var k=0;k<bands.length;k++){
-    var b = bands[k];
-    var ek = sameLen ? idx[k] : k;
-    rows += "<tr><td>Band "+(k+1)+" → #"+(ek+1)+"</td><td>"+AE_TYPLBL[b.type]+"</td><td>"+fmtFreq(b.freq)+"</td><td>"+fmtDb(b.gain)+" dB</td><td>"+b.q.toFixed(2)+"</td></tr>";
-    sig += b.type+","+b.freq+","+b.gain+","+b.q+";";
+  var newVals = new Array(1 + n*4);
+  newVals[0] = n;
+  for (var k2=0;k2<bands.length;k2++){
+    var b2 = bands[k2];
+    var ek = sameLen ? idx[k2] : k2;
+    rows += "<tr><td>Band "+(k2+1)+" → #"+(ek+1)+"</td><td>"+AE_TYPLBL[b2.type]+"</td><td>"+fmtFreq(b2.freq)+"</td><td>"+fmtDb(b2.gain)+" dB</td><td>"+b2.q.toFixed(2)+"</td></tr>";
+    var o2 = 1 + k2*4;
+    newVals[o2] = b2.type; newVals[o2+1] = b2.freq; newVals[o2+2] = b2.gain; newVals[o2+3] = b2.q;
   }
-  if (sig === AE_BAND_SIG) return;
-  AE_BAND_SIG = sig;
+  AE_BAND_SIG = newVals;
   t.innerHTML = rows;
 }
 /* --- Tối ưu độ mượt khi kéo slider (2026-10-31): các sự kiện "input" của
