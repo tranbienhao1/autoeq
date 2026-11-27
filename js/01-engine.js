@@ -539,7 +539,7 @@ function gridTotalDb(N, fs){
        khối AutoEQ) — khi đó psycho chưa tồn tại và đóng góp đúng bằng 0,
        giống hệt totalDbAt bảo vệ bằng typeof PSY. Khi PSY nạp xong, psyKey
        chuyển null → chữ ký thật và mảng psycho được tính lại ngay. */
-    c = GRID_TOT[N] = { fs: fs, keys: [], arrs: [], psyKey: undefined, psyArr: new Float64Array(N + 1), total: null, dirty: true };
+    c = GRID_TOT[N] = { fs: fs, keys: [], arrs: [], zero: [], psyKey: undefined, psyArr: new Float64Array(N + 1), total: null, dirty: true };
   }
   var i, k, b, key;
   var _fbCw = null, _fbSw = null, _fbCw2 = null, _fbSw2 = null;
@@ -579,7 +579,7 @@ function gridTotalDb(N, fs){
           }
         }
       }
-      c.arrs[i] = arr; c.dirty = true;
+      c.arrs[i] = arr; c.zero[i] = !cc; c.dirty = true;
     }
   }
   var psyKey = null;
@@ -616,6 +616,8 @@ function gridTotalDb(N, fs){
   if (c.dirty || !c.total){
     var tot = new Float64Array(N + 1);
     for (i = 0; i < bands.length; i++){
+      /* (vòng tự động 07:54, hướng B): bỏ qua mảng đáp tuyến toàn 0 của band tắt/gain 0 (c.zero[i] đúng khi cc===null, tức arr là Float64Array toàn +0) trong vòng tổng — cộng +0 là phép đồng nhất với mọi giá trị hữu hạn/±Infinity/NaN và tot[k] không bao giờ là -0 (mọi hạng tử dB đều từ log của số dương, triệt tiêu cho +0) nên mọi double của total GIỐNG TỪNG BIT theo cấu trúc; thứ tự cộng các band còn lại giữ nguyên. Tiết kiệm (N+1) phép cộng cho mỗi band tắt trên đường dirty (kéo node với preset ít band hoạt động). */
+      if (c.zero && c.zero[i]) continue;
       var _arr = c.arrs[i];
       for (k = 0; k <= N; k++) tot[k] += _arr[k];
     }
