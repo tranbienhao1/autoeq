@@ -6956,15 +6956,16 @@ function sofaExtractHrtf(u8){
       if (dR > delayMax) delayMax = dR;
     }
     var left, right;
+    /* (vòng tự động 17:24 nhóm C): hợp nhất vòng chuẩn hoá -0 (x+0) vào vòng sao chép trong nhánh delay của sofaExtractHrtf — trước đây mỗi kênh có delay tốn 2 lượt quét toàn mảng (sao chép rồi vòng chuẩn hoá riêng đọc/ghi lại từng phần tử); nay áp +0 ngay khi chép từng phần tử (mỗi phần tử vẫn áp đúng 1 lần, cùng toán hạng/thứ tự nên giống từng bit, gồm -0/NaN/±Infinity/subnormal) và chỉ chạy vòng chuẩn hoá riêng cho kênh đến từ slice (dL/dR === 0). Phần đệm delay là +0 sẵn nên không cần chuẩn hoá lại. Lab Node trên khối trích verbatim (hidden_files/run_20261127_1724_C/lab/, 2 lần chạy độc lập): parity 383/383 GIỐNG TỪNG BIT (Object.is trên azimuth/elevation/mọi phần tử left/right + delayMax + loại/thông điệp lỗi; gồm lưới M×N, delay none/zero/const/mixed/frac, giá trị đặc biệt, đường lỗi, 300 fuzz); bench độ phân giải cao: W1 M1000×N512 delay3 1,0822× thắng 29/31, W2 M1000×N64 mixed-delay 1,0755× thắng 29/31, control delay0 1,0061× trung tính (không hồi quy). Không chạm solver/WASM/FIR/QA logic; aeV3 không đổi theo cấu trúc (không đo lại; gần nhất 468/482 ms ngày 2026-11-11). Lượt kế: nhóm D. */
     if (dL){
       left = new Array(dL + N);
       for (r = 0; r < dL; r++) left[r] = 0;
-      for (r = 0; r < N; r++) left[dL + r] = ir.values[base + r];
+      for (r = 0; r < N; r++) left[dL + r] = ir.values[base + r] + 0;
     } else left = ir.values.slice(base, base + N);
     if (dR){
       right = new Array(dR + N);
       for (r = 0; r < dR; r++) right[r] = 0;
-      for (r = 0; r < N; r++) right[dR + r] = ir.values[base + N + r];
+      for (r = 0; r < N; r++) right[dR + r] = ir.values[base + N + r] + 0;
     } else right = ir.values.slice(base + N, base + 2 * N);
     /* (vòng tự động 02:54, hướng C — ÁP DỤNG, vá code): bỏ slice+concat đôi trong nhánh delay của sofaExtractHrtf — trước đây mỗi hướng có delay đều slice mảng N phần tử rồi new Array(d).fill(0).concat(left) cấp phát mảng thứ hai và sao chép toàn bộ N phần tử lần nữa (2 lần sao chép + 2 lần cấp phát mỗi kênh/hướng); nay khi dL/dR > 0 cấp phát đúng một mảng d+N, điền 0 (+0, như fill(0)) rồi chép trực tiếp từng phần tử từ ir.values[base..] / ir.values[base+N..] — cùng độ dài, cùng thứ tự, cùng giá trị từng bit (kể cả -0/NaN/±Infinity/subnormal, vòng chuẩn hoá -0 sau đó giữ nguyên); khi delay = 0 giữ nguyên slice như cũ. Lab Node trên hàm thật trích verbatim (extract.py + make_new.py + harness.js + bench.js trong hidden_files/run_20261124_0254_C/, 4 lần bench độc lập): parity GIỐNG TỪNG BIT — 5 case (delay hỗn hợp, không delay, delay một phía, N lớn ném lỗi đúng loại cũ, delay lớn) + 30 fuzz, Object.is trên azimuth/elevation/mọi phần tử left/right + sampleRate/taps/delayMax/measurements; tốc độ paired-median xen kẽ 15 vòng: W1 M1000×N512 delay3 1,2685×/1,3401×/1,2345×/1,2834× (thắng 12–13/15), W2 M1000×N64 delay5 1,2615×/1,2455×/1,2425×/1,2622× (thắng 15/15 cả 4 lần), control không delay 0,9735×/0,9035×/0,9960×/1,0012× trung tính (lần 2 nhiễu tải máy, 2 lần cuối ~1,00× đúng kỳ vọng) — cải thiện ổn định trên đường có delay cả 4 lần. Không chạm solver/WASM/FIR/QA logic; aeV3 không đổi theo cấu trúc (không đo lại; gần nhất 468/482 ms ngày 2026-11-11). Bộ đếm lab-only vẫn 12. Lượt kế: nhóm D. Lab: hidden_files/run_20261124_0254_C/. */
     var az = (typeof hrtfWrapAz === "function") ? hrtfWrapAz(azRaw) : azRaw;
@@ -6974,8 +6975,8 @@ function sofaExtractHrtf(u8){
       /* (vòng tự động 18:51, hướng C — ÁP DỤNG, vá code): bỏ parseFloat thừa trong nhánh sanitize — az (kết quả hrtfWrapAz) và elRaw (giá trị dataset) luôn là number nên parseFloat(x) === x + 0 với mọi double (roundtrip ToString/parse; -0 chuẩn hoá về +0 như nhau; NaN/Infinity vẫn qua isFinite về 0 như cũ) — giữ nguyên isFinite + clamp, chỉ bớt 2 lần chuyển đổi chuỗi mỗi hướng. */
       var _az = az + 0; if (!isFinite(_az)) _az = 0; _az = Math.max(-180, Math.min(180, _az));
       var _el = elRaw + 0; if (!isFinite(_el)) _el = 0; _el = Math.max(-90, Math.min(90, _el));
-      for (r = 0; r < left.length; r++) left[r] = left[r] + 0;
-      for (r = 0; r < right.length; r++) right[r] = right[r] + 0;
+      if (!dL) for (r = 0; r < left.length; r++) left[r] = left[r] + 0;
+      if (!dR) for (r = 0; r < right.length; r++) right[r] = right[r] + 0;
       dir = { azimuth: _az, elevation: _el, left: left, right: right };
     } else
       dir = { azimuth: azRaw, elevation: elRaw, left: left, right: right };
