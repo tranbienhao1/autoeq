@@ -1576,11 +1576,23 @@ function objectiveS(bi, trial){
     }
     var C1=freqs._cw, S1=freqs._sw, C2=freqs._cw2, S2=freqs._sw2;
     var s = 0;
-    for (var k2 = 0; k2 < n; k2 += 2){
+    /* (vong tu dong 04:24, huong A - AP DUNG, va code): unroll x2 vong diem cua objectiveS trong hwSolve (port ky thuat aeSolveSingle 00:24 sang hwSolve, chua tung thu o hwSolve) - truoc day vong k2+=2 xu ly 1 diem chan moi lan lap; nay moi lan lap xu ly 2 diem chan lien tiep (k2 va k2+2) voi dung thu tu cong s (s+=diem k2 roi s+=diem k2+2, dung toan hang/bieu thuc nhu ban goc), phan du (chi so chan cuoi khi n le) xu ly bang vong rieng cung thu tu; moi so double cua s GIONG TUNG BIT theo cau truc ke ca NaN/Infinity/-0/mang thua; chi giam chi phi dieu khien vong tren duong nong cua NM hwSolve. Khong tham chieu bien ngoai moi (chi b0..a2/C1/S1/C2/S2/hwBase/errDb/W/n da co) nen khong doi hanh vi. Lab Node tren ham that trich verbatim (extract.py + harness.js + bench.js trong hidden_files/run_20261128_0424_A/lab/, 2 lan bench doc lap): parity 710/710 ca GIONG TUNG BIT (Object.is sau tren bands/total + loai loi; gom 4 profile x 7 co luoi x 8 dang err x 8 dang W, n nho 0-13 kiem chung phan du, 40 fuzz, P null/undefined, freqs/W null, determinism); toc do toan hwSolve paired-median xen ke 15 vong: lan 1 W1 1,1033x (13/15), W2 1,0783x (13/15), W3 1,0628x (15/15), W4 1,0913x (12/15), W5 1,0606x (14/15); lan 2 W1 1,0764x (13/15), W2 1,0767x (15/15), W3 1,0556x (15/15), W4 1,0671x (14/15), W5 1,0776x (15/15) - cai thien on dinh moi workload ca 2 lan; control old-vs-old 1,0132x/0,9668x (nhieu +-3%). Khong cham solver/WASM/FIR/QA logic; aeV3 khong doi theo cau truc (khong cham aeSolve; gan nhat 468/482 ms ngay 2026-11-11). Bo dem lab-only van 12. Luot ke: nhom B. */
+    for (var k2 = 0; k2 + 2 < n; k2 += 4){
       var nr = b0 + b1*C1[k2] + b2*C2[k2], ni = b1*S1[k2] + b2*S2[k2];
       var dr = 1 + a1*C1[k2] + a2*C2[k2], di = a1*S1[k2] + a2*S2[k2];
       var cv = Math.log((nr*nr+ni*ni)/Math.max(1e-30, dr*dr+di*di))*4.342944819032518;
       var e = errDb[k2] - (hwBase[k2] + cv); s += W[k2] * e * e;
+      var k2b = k2 + 2;
+      var nr2 = b0 + b1*C1[k2b] + b2*C2[k2b], ni2 = b1*S1[k2b] + b2*S2[k2b];
+      var dr2 = 1 + a1*C1[k2b] + a2*C2[k2b], di2 = a1*S1[k2b] + a2*S2[k2b];
+      var cv2 = Math.log((nr2*nr2+ni2*ni2)/Math.max(1e-30, dr2*dr2+di2*di2))*4.342944819032518;
+      var e2 = errDb[k2b] - (hwBase[k2b] + cv2); s += W[k2b] * e2 * e2;
+    }
+    for (var k2r = k2; k2r < n; k2r += 2){
+      var nrr = b0 + b1*C1[k2r] + b2*C2[k2r], nir = b1*S1[k2r] + b2*S2[k2r];
+      var drr = 1 + a1*C1[k2r] + a2*C2[k2r], dir2 = a1*S1[k2r] + a2*S2[k2r];
+      var cvr = Math.log((nrr*nrr+nir*nir)/Math.max(1e-30, drr*drr+dir2*dir2))*4.342944819032518;
+      var er = errDb[k2r] - (hwBase[k2r] + cvr); s += W[k2r] * er * er;
     }
     var reg = 0;
     for (var bj = 0; bj < bands.length; bj++){ var g = (bj === bi) ? trial.gain : bands[bj].gain; reg += (g / 12) * (g / 12); }
