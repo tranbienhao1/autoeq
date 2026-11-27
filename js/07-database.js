@@ -1242,7 +1242,19 @@ function hwSolve(freqs, errDb, W, P){
   var n = freqs.length, i, k, sumW = 0, sumW2 = 0;
   for (i = 0; i < n; i++) sumW += W[i];
   for (i = 0; i < n; i += 2) sumW2 += W[i];
-  var tot = aeTotalCurve(bands, freqs);
+  var tot;
+  /* (vòng tự động 08:52, hướng A — ÁP DỤNG, vá code): bỏ tính aeTotalCurve khởi tạo trong hwSolve khi mọi band mới đều gain 0 ở 3 họ identity (port kỹ thuật aeSolveSingle 07:31 sang hwSolve, chưa từng thử ở hwSolve) — hwInitBands luôn tạo band gain 0 (kể cả sau hwClampBand, guard kiểm tra giá trị thật tại thời điểm chạy); rbjCoeffs trả identity {1,0,0,0,0} cho gain 0 ở peaking/lowshelf/highshelf (fast-path sẵn có, kể cả freq/Q/fs không hữu hạn) nên với lưới hữu hạn mỗi đường cong band đúng 0 dB từng điểm (nr=1, ni=0, dr=1, di=0 → 10*log10(1)=+0) và tot = fill(0) giống từng bit; cache lượng giác freqs._cw vẫn được lsGainStep dựng ở guard đầu vòng như cũ (cùng fs AE_FS) nên trạng thái cuối không đổi. Lưới không hữu hạn/không phải mảng, band ngoài 3 họ, gain khác 0 hoặc band rỗng/thừa đều rơi về aeTotalCurve gốc nguyên vẹn. Lab Node trên hàm thật trích verbatim, file thường nối liền (extract.py + driver.js + bench.js trong hidden_files/run_20261127_0852_A/lab/, 2 lần chạy độc lập): parity toàn hàm hwSolve 552/552 ca GIỐNG TỪNG BIT (Object.is trên bands/total; gồm 7 profile gồm notchOnly/bandpass-only/gainMin>0, lưới 240/9/1/rỗng/NaN/Infinity/mảng-thưa/mảng-đối-tượng, err 8 dạng, W 7 dạng gồm null/NaN/âm/cực đoan, maxBands 0/1/2/24, 40 fuzz) + determinism OK; tốc độ khối init paired-median xen kẽ 15 vòng × 200 rep: lần 1 generic 70,36× / qudelix5k 66,76× / fioBtr15 33,59× / moondropDsp 28,69× (thắng 15/15 mọi profile), lần 2 81,89× / 64,25× / 31,32× / 24,92× (thắng 15/15); toàn hàm hwSolve trung tính trong nhiễu máy chia sẻ (0,993×–1,054×) đúng kỳ vọng vì khối init chỉ ~0,06 ms/lần gọi. Không chạm solver/WASM/FIR/QA logic; aeV3 không đổi theo cấu trúc (không chạm aeSolve; gần nhất 468/482 ms ngày 2026-11-11). Bộ đếm lab-only vẫn 12. Lượt kế: nhóm B. Lab: hidden_files/run_20261127_0852_A/lab/. */
+  var _hwInitZero = Array.isArray(freqs) && bands.length > 0;
+  if (_hwInitZero){
+    for (var _zi = 0; _zi < bands.length; _zi++){
+      var _zb = bands[_zi];
+      if (!_zb || _zb.gain !== 0 || (_zb.type !== "peaking" && _zb.type !== "lowshelf" && _zb.type !== "highshelf")){ _hwInitZero = false; break; }
+    }
+  }
+  if (_hwInitZero){
+    for (var _zf = 0; _zf < n; _zf++){ if (!isFinite(freqs[_zf])){ _hwInitZero = false; break; } }
+  }
+  tot = _hwInitZero ? new Array(n).fill(0) : aeTotalCurve(bands, freqs);
   /* Ridge λ phải tỉ lệ với độ lớn của JᵀWJ (λ tương đối × trung bình đường chéo):
      λ tuyệt đối 0.35 của aeSolve chỉ đủ khi band ít và thưa; với 18-20 band sát
      nhau, JᵀWJ gần suy biến và nghiệm LS phát nổ thành chồng band triệt tiêu. */
