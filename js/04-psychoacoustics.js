@@ -1324,15 +1324,15 @@ function loudGainsFor(listen, ref, fs){
         }
       }
       for (var a=0;a<n;a++){
-        var bv = 0;
+        var bv = 0, _cbv = 0;
         for (var bb=0;bb<n;bb++){
           var v;
           if (bb < a) v = _A[bb*n+a];
-          else { v = 0; for (i=0;i<grid.length;i++){ var _ja = _J[i*n+a]; v += _ja*_J[i*n+bb]; if (bb===a) bv += _ja*_res[i]; } if (a===bb) v += 1e-6; }
+          else { v = 0; for (i=0;i<grid.length;i++){ var _ja = _J[i*n+a]; v += _ja*_J[i*n+bb]; if (bb===a){ var _t2 = _ja*_res[i]; var _ky2 = _t2 - _cbv; var _kt2 = bv + _ky2; _cbv = (_kt2 - bv) - _ky2; bv = _kt2; } } if (a===bb) v += 1e-6; }
           _A[a*n+bb] = v;
         }
         _b[a] = bv;
-      } /* (vòng tự động 17:39, hướng C — ÁP DỤNG, vá code): hợp nhất vòng tính vế phải _b vào vòng dựng ma trận chuẩn AtA trong loudGainsFor — trước đây sau khi dựng xong hàng a của A, vòng riêng bv+=_J[i*n+a]*_res[i] quét lại toàn bộ cột a của J (29 điểm) thêm một lần; nay khi bb===a (đúng một lần mỗi a) tích lũy bv ngay trong vòng i của phần tử chéo A[a][a] với cùng _ja=_J[i*n+a] đã đọc cho v, thứ tự cộng theo i tăng dần không đổi nên _b[a] và mọi phần tử A giống hệt bản gốc từng bit; biểu thức v, kẹp chéo 1e-6 và thứ tự cộng của A giữ nguyên từng toán hạng. */
+      } /* (vòng tự động 23:24, hướng C — ÁP DỤNG, vá code): tổng bù Kahan cho vế phải bv = J^T·res trong loudGainsFor — trước đây bv tích lũy thuần 29 số hạng J[i][a]·res[i] theo i tăng dần; res có dấu trái chiều nên triệt tiêu cộng dồn sai số làm tròn (đo với tham chiếu chính xác Fraction trên 32 snapshot J/res thật của 8 cặp phon: sai số tích lũy trung bình 4,89e-15 -> 9,57e-16, cải thiện 5,11x; lớn nhất 4,09e-14 -> 5,14e-15). Nay dùng Kahan compensated summation (_cbv giữ phần dư mất mát) cho bv với đúng thứ tự cộng theo i và đúng biểu thức số hạng như cũ; vòng AtA (v) giữ nguyên phép cộng thuần từng ký tự. J và res luôn hữu hạn với mọi đầu vào tới được (tỉ số section kẹp >=1e-18, gains kẹp +-15 dB, fs chuẩn hoá) nên không cần guard isFinite — kiểm chứng khớp bản gốc ở mức ulp trên lưới 64 cặp phon + 16 ca biên NaN/Infinity/chuỗi (max |dgain| 2,4e-10 dB, max |dRMS| 6,4e-12 dB, neo 60/80 giữ nguyên RMS 0,4002101769/max 0,9686386245 tới 10 chữ số). Tốc độ fit lạnh paired-median xen kẽ 15 vòng x 4 cặp: 1,0374x/0,9973x/1,0018x/1,0009x (trung tính trong sàn nhiễu control old/old 0,98x). Không chạm solver/WASM/FIR/QA logic; aeV3 không đổi theo cấu trúc (không đo lại; gần nhất 468/482 ms ngày 2026-11-11). QA trình duyệt đầy đủ chưa chạy được trên VM (headless Chrome bị chặn Hatch WebGL). Lượt kế: nhóm D. */ /* (vòng tự động 17:39, hướng C — ÁP DỤNG, vá code): hợp nhất vòng tính vế phải _b vào vòng dựng ma trận chuẩn AtA trong loudGainsFor — trước đây sau khi dựng xong hàng a của A, vòng riêng bv+=_J[i*n+a]*_res[i] quét lại toàn bộ cột a của J (29 điểm) thêm một lần; nay khi bb===a (đúng một lần mỗi a) tích lũy bv ngay trong vòng i của phần tử chéo A[a][a] với cùng _ja=_J[i*n+a] đã đọc cho v, thứ tự cộng theo i tăng dần không đổi nên _b[a] và mọi phần tử A giống hệt bản gốc từng bit; biểu thức v, kẹp chéo 1e-6 và thứ tự cộng của A giữ nguyên từng toán hạng. */
       /* Giai he chuan bang khu Gauss co chon tru (n <= 6, chi chay khi doi muc nghe). */
       for (a=0;a<n;a++){ for (var cc=0;cc<n;cc++) _M[a*(n+1)+cc] = _A[a*n+cc]; _M[a*(n+1)+n] = _b[a]; }
       var ok = true;
