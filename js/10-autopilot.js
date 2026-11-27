@@ -147,11 +147,20 @@ function autoGuardLowGroupDelay(fs){
   if (mode !== "iir") return { guarded: false, gdMaxLow: 0 };
   qaGdMaxLowOnly();
   var iter = 0;
+  /* (vòng tự động 18:08, hướng B): hoist chỉ số band ứng viên ra khỏi vòng lặp guard — điều kiện on/freq<=120/|gain|>0.5 bất biến trong suốt vòng lặp (chỉ bands[i].q bị vòng lặp tự sửa, đơn điệu giảm) nên tính danh sách chỉ số ứng viên MỘT lần (lười, ở lần lặp đầu tiên cần quét) rồi mỗi vòng chỉ kiểm tra q>0.65 trên các ứng viên theo đúng thứ tự chỉ số gốc; thứ tự chạm band, công thức cập nhật q, cờ touched và số lần gọi qaGdMaxLowOnly giữ nguyên nên kết quả giống từng bit, kể cả đường lỗi (band null ném đúng TypeError ở lần quét đầu như cũ; khi gdMaxLow<=5/null thì vòng không chạy, không quét, không ném — như cũ). */
+  var cand = null;
   while (QA6.gdMaxLow !== null && QA6.gdMaxLow > 5.0 && iter < 8){
+    if (cand === null){
+      cand = [];
+      for (var ci = 0; ci < bands.length; ci++){
+        if (bands[ci].on && bands[ci].freq <= 120 && Math.abs(bands[ci].gain) > 0.5) cand.push(ci);
+      }
+    }
     var touched = false;
-    for (var i = 0; i < bands.length; i++){
-      if (bands[i].on && bands[i].freq <= 120 && Math.abs(bands[i].gain) > 0.5 && bands[i].q > 0.65){
-        bands[i].q = Math.max(0.5, Math.round(bands[i].q * 82) / 100);
+    for (var cj = 0; cj < cand.length; cj++){
+      var bi = cand[cj];
+      if (bands[bi].q > 0.65){
+        bands[bi].q = Math.max(0.5, Math.round(bands[bi].q * 82) / 100);
         touched = true;
       }
     }
