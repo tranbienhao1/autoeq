@@ -22,7 +22,10 @@ function upInterp(pts, f){
   if (f >= pts[pts.length-1][0]) return pts[pts.length-1][1];
   var lo = 0, hi = pts.length - 1;
   while (hi - lo > 1){ var m = (lo + hi) >> 1; if (pts[m][0] <= f) lo = m; else hi = m; }
-  var t = (Math.log(f) - Math.log(pts[lo][0])) / (Math.log(pts[hi][0]) - Math.log(pts[lo][0]));
+/* (vòng tự động 03:24, hướng C — ÁP DỤNG, vá code): nội suy log-tỉ lệ trong upInterp/up2Interp và hai đường nhanh (upApplyMicCal, upAverageRunsFast) — trước đây t=(log f−log f0)/(log f1−log f0) triệt tiêu catastrofe khi f gần nút lưới (log f và log f0 đều ~7–9, hiệu ~1e-7); nay khi f,f0,f1>0 và tỉ lệ hữu hạn/dương tính t=log(f/f0)/log(f1/f0) — tỉ lệ tính chính xác tới 1 ulp rồi mới log nên sai số giảm mạnh; mọi trường hợp khác (âm/0/NaN/tràn) rơi về biểu thức log-hiệu gốc từng ký tự. Đường nhanh tiền tính log-tỉ lệ theo từng đoạn (_logRatio/_runSegLR) nên vẫn bit-identical với upInterp mới. Lab Node trên hàm thật trích verbatim (hidden_files/run_20261128_0324_C/lab/, tham chiếu mpmath 50 chữ số, 686 ca): sai số tối đa 9,06e-14 → 2,04e-14 dB (4,4×, bản mới tốt hơn 482/686 ca); parity biên 179/180 giống từng bit (1 ca lệch 1 ulp 2,2e-16); đường nhanh == đường chậm 0 lệch; upSelfCheck1 7/7 giống hệt; tốc độ upInterp 1,04–1,10× nhanh hơn (bỏ 1 lần Math.log mỗi lần gọi), đường nhanh chậm hơn tương đối 0,40–0,55× nhưng tuyệt đối chỉ +0,5 ms (micCal 2000×200) / +1,25 ms (avgRuns 4×500) trên hàm bấm nút. Không chạm solver/WASM/FIR/QA logic; aeV3 không đổi theo cấu trúc (không đo lại; gần nhất 468/482 ms ngày 2026-11-11). QA trình duyệt đầy đủ chưa chạy được trên VM (headless Chrome bị chặn Hatch WebGL). Lượt kế: nhóm D. */
+  var _f0 = pts[lo][0], _f1 = pts[hi][0], _r0 = f / _f0, _r1 = _f1 / _f0, t;
+  if (f > 0 && _f0 > 0 && _f1 > 0 && _r0 > 0 && _r1 > 0 && isFinite(_r0) && isFinite(_r1)) t = Math.log(_r0) / Math.log(_r1);
+  else t = (Math.log(f) - Math.log(_f0)) / (Math.log(_f1) - Math.log(_f0));
   return pts[lo][1] + t * (pts[hi][1] - pts[lo][1]);
 }
 function upErbHz(f){ return 24.7 * (4.37 * f / 1000 + 1); }
@@ -128,6 +131,11 @@ function upApplyMicCal(measPts, calPts){
     if (_sorted){
       var _logCal = new Array(calPts.length), _li2;
       for (_li2 = 0; _li2 < _logCal.length; _li2++) _logCal[_li2] = Math.log(calPts[_li2][0]);
+      var _logRatio = new Array(calPts.length);
+      for (_li2 = 0; _li2 + 1 < calPts.length; _li2++){
+        var _cf0 = calPts[_li2][0], _cf1 = calPts[_li2+1][0], _cr1 = _cf1 / _cf0;
+        _logRatio[_li2] = (_cf0 > 0 && _cf1 > 0 && _cr1 > 0 && isFinite(_cr1)) ? Math.log(_cr1) : NaN;
+      }
       ref1000 = upInterp(calPts, 1000); hasRef = true;
       var _out = [], _p = 0, _mi;
       for (_mi = 0; _mi < measPts.length; _mi++){
@@ -136,7 +144,9 @@ function upApplyMicCal(measPts, calPts){
         else if (_f >= calPts[calPts.length-1][0]) _calAt = calPts[calPts.length-1][1];
         else {
           while (_p + 1 < calPts.length && calPts[_p+1][0] <= _f) _p++;
-          var _t = (Math.log(_f) - _logCal[_p]) / (_logCal[_p+1] - _logCal[_p]);
+          var _ff0 = calPts[_p][0], _rr0 = _f / _ff0, _t;
+          if (_f > 0 && _ff0 > 0 && _rr0 > 0 && isFinite(_rr0) && isFinite(_logRatio[_p])) _t = Math.log(_rr0) / _logRatio[_p];
+          else _t = (Math.log(_f) - _logCal[_p]) / (_logCal[_p+1] - _logCal[_p]);
           _calAt = calPts[_p][1] + _t * (calPts[_p+1][1] - calPts[_p][1]);
         }
         _out.push([_f, _v - (_calAt - ref1000)]);
@@ -150,16 +160,22 @@ function upApplyMicCal(measPts, calPts){
 function upAverageRunsFast(runs, freqs, points, spreads){
   var _logF = new Array(freqs.length);
   for (var _fi = 0; _fi < freqs.length; _fi++) _logF[_fi] = Math.log(freqs[_fi]);
-  var _runLog = new Array(runs.length);
+  var _runLog = new Array(runs.length), _runSegLR = new Array(runs.length);
   for (var _ri2 = 0; _ri2 < runs.length; _ri2++){
     var _rr = runs[_ri2], _lf = new Array(_rr.length);
     for (var _li = 0; _li < _lf.length; _li++) _lf[_li] = Math.log(_rr[_li][0]);
     _runLog[_ri2] = _lf;
+    var _slr = new Array(_rr.length);
+    for (var _lj = 0; _lj + 1 < _rr.length; _lj++){
+      var _rf0 = _rr[_lj][0], _rf1 = _rr[_lj+1][0], _rr1v = _rf1 / _rf0;
+      _slr[_lj] = (_rf0 > 0 && _rf1 > 0 && _rr1v > 0 && isFinite(_rr1v)) ? Math.log(_rr1v) : NaN;
+    }
+    _runSegLR[_ri2] = _slr;
   }
   var _valsByFreq = new Array(freqs.length);
   for (var _vi = 0; _vi < freqs.length; _vi++) _valsByFreq[_vi] = [];
   for (var _ri3 = 0; _ri3 < runs.length; _ri3++){
-    var r = runs[_ri3], logR = _runLog[_ri3], p = 0;
+    var r = runs[_ri3], logR = _runLog[_ri3], segLR = _runSegLR[_ri3], p = 0;
     var r0 = r[0][0], rLast = r[r.length-1][0];
     for (var _fi2 = 0; _fi2 < freqs.length; _fi2++){
       var f = freqs[_fi2];
@@ -168,7 +184,9 @@ function upAverageRunsFast(runs, freqs, points, spreads){
         else if (f >= rLast) _valsByFreq[_fi2].push(r[r.length-1][1]);
         else {
           while (p + 1 < r.length && r[p+1][0] <= f) p++;
-          var t = (_logF[_fi2] - logR[p]) / (logR[p+1] - logR[p]);
+          var _gf0 = r[p][0], _gr0 = f / _gf0, t;
+          if (f > 0 && _gf0 > 0 && _gr0 > 0 && isFinite(_gr0) && isFinite(segLR[p])) t = Math.log(_gr0) / segLR[p];
+          else t = (_logF[_fi2] - logR[p]) / (logR[p+1] - logR[p]);
           _valsByFreq[_fi2].push(r[p][1] + t * (r[p+1][1] - r[p][1]));
         }
       }
@@ -446,7 +464,9 @@ function up2Interp(pts, f){
   if (f >= pts[pts.length-1][0]) return pts[pts.length-1][1];
   var lo = 0, hi = pts.length - 1;
   while (hi - lo > 1){ var m = (lo + hi) >> 1; if (pts[m][0] <= f) lo = m; else hi = m; }
-  var t = (Math.log(f) - Math.log(pts[lo][0])) / (Math.log(pts[hi][0]) - Math.log(pts[lo][0]));
+  var _f0 = pts[lo][0], _f1 = pts[hi][0], _r0 = f / _f0, _r1 = _f1 / _f0, t;
+  if (f > 0 && _f0 > 0 && _f1 > 0 && _r0 > 0 && _r1 > 0 && isFinite(_r0) && isFinite(_r1)) t = Math.log(_r0) / Math.log(_r1);
+  else t = (Math.log(f) - Math.log(_f0)) / (Math.log(_f1) - Math.log(_f0));
   return pts[lo][1] + t * (pts[hi][1] - pts[lo][1]);
 }
 function up2Clamp(v, lo, hi){ return Math.max(lo, Math.min(hi, v)); }
