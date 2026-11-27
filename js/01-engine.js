@@ -539,7 +539,7 @@ function gridTotalDb(N, fs){
        khối AutoEQ) — khi đó psycho chưa tồn tại và đóng góp đúng bằng 0,
        giống hệt totalDbAt bảo vệ bằng typeof PSY. Khi PSY nạp xong, psyKey
        chuyển null → chữ ký thật và mảng psycho được tính lại ngay. */
-    c = GRID_TOT[N] = { fs: fs, keys: [], arrs: [], zero: [], psyKey: undefined, psyArr: new Float64Array(N + 1), total: null, dirty: true };
+    c = GRID_TOT[N] = { fs: fs, keys: [], arrs: [], zero: [], psyZero: true, psyKey: undefined, psyArr: new Float64Array(N + 1), total: null, dirty: true };
   }
   var i, k, b, key;
   var _fbCw = null, _fbSw = null, _fbCw2 = null, _fbSw2 = null;
@@ -612,6 +612,8 @@ function gridTotalDb(N, fs){
       }
     }
     c.psyArr = pa; c.dirty = true;
+    /* (vòng tự động 15:30, hướng B): cờ psyZero — psyArr toàn 0 khi psyKey===null (chưa nạp/bypass) hoặc không section psycho nào hoạt động (_act rỗng); khi đó vòng cộng psyArr trong khối tổng dirty bị bỏ qua vì tot[k] + 0 === tot[k] với mọi giá trị hữu hạn/±Infinity/NaN (tot[k] không bao giờ là -0: mọi hạng tử đều từ log của số dương, triệt tiêu cho +0) nên total giống từng bit. Section hoạt động nhưng tổng triệt tiêu về 0 vẫn giữ psyZero=false (vòng vẫn chạy, không đổi kết quả). */
+    c.psyZero = (psyKey === null) || (typeof psychoDbAt !== "function") || !_act || _act.length === 0;
   }
   if (c.dirty || !c.total){
     var tot = new Float64Array(N + 1);
@@ -621,7 +623,7 @@ function gridTotalDb(N, fs){
       var _arr = c.arrs[i];
       for (k = 0; k <= N; k++) tot[k] += _arr[k];
     }
-    for (k = 0; k <= N; k++) tot[k] += c.psyArr[k];
+    if (!c.psyZero) for (k = 0; k <= N; k++) tot[k] += c.psyArr[k];
     c.total = tot; c.dirty = false;
   }
   return c.total;
