@@ -433,22 +433,39 @@ function dbExtParseCsv(text){
      xu ly so kieu chau Au (dau phay thap phan khi delimiter la ;/tab/space),
      boc dau ngoac kep va bo dong comment (*, #, ;) nhu duong dbParseMeasurement.
      Gioi han chap nhan (f > 0, f <= 100000) va sap xep tang dan giu nguyen. */
+  /* (vòng tự động 01:54 nhóm D, bản đa file): viết lại vòng tách token trong dbExtParseCsv — trước đây mỗi dòng dựng mảng split rồi map/filter với 2 closure + 2 mảng tạm dù chỉ cần 2 token đầu (f, v); nay quét thủ công theo delimiter đơn ký tự (tab/;/,) hoặc split whitespace cho delimiter khoảng trắng, chỉ thu tối đa 2 token khác rỗng đầu tiên (toks[0]/toks[1] và điều kiện toks.length<2 không đổi vì các token sau không ảnh hưởng), biểu thức bóc ngoặc kép/trim và chuyển số thập phân phẩy giữ nguyên từng toán hạng nên kết quả GIỐNG TỪNG BIT theo cấu trúc. --- */
   var pts = [];
-  text.split(/\r?\n/).forEach(function(line){
-    var raw = line.trim();
-    if (!raw) return;
+  var _lines = text.split(/\r?\n/);
+  for (var _li = 0; _li < _lines.length; _li++){
+    var raw = _lines[_li].trim();
+    if (!raw) continue;
     var first = raw.charAt(0);
-    if (first === "*" || first === "#" || first === ";") return;
+    if (first === "*" || first === "#" || first === ";") continue;
     var delim = raw.indexOf("\t") >= 0 ? "\t" : (raw.indexOf(";") >= 0 ? ";" : (raw.indexOf(",") >= 0 ? "," : " "));
-    var toks = (delim === " " ? raw.split(/\s+/) : raw.split(delim)).map(function(t){ return t.replace(/^"+|"+$/g, "").trim(); }).filter(function(t){ return t.length > 0; });
-    if (toks.length < 2) return;
-    function num(t){
-      if ((delim === ";" || delim === "\t" || delim === " ") && /^-?\d+,\d+$/.test(t)) t = t.replace(",", ".");
-      return parseFloat(t);
+    var toks = [];
+    if (delim === " "){
+      var _parts = raw.split(/\s+/);
+      for (var _pi = 0; _pi < _parts.length && toks.length < 2; _pi++){
+        var _tok = _parts[_pi].replace(/^"+|"+$/g, "").trim();
+        if (_tok.length > 0) toks.push(_tok);
+      }
+    } else {
+      var _start = 0;
+      for (var _ci = 0; _ci <= raw.length && toks.length < 2; _ci++){
+        if (_ci === raw.length || raw.charAt(_ci) === delim){
+          var _tok2 = raw.slice(_start, _ci).replace(/^"+|"+$/g, "").trim();
+          if (_tok2.length > 0) toks.push(_tok2);
+          _start = _ci + 1;
+        }
+      }
     }
-    var f = num(toks[0]), v = num(toks[1]);
+    if (toks.length < 2) continue;
+    var _t0 = toks[0], _t1 = toks[1];
+    if ((delim === ";" || delim === "\t" || delim === " ") && /^-?\d+,\d+$/.test(_t0)) _t0 = _t0.replace(",", ".");
+    if ((delim === ";" || delim === "\t" || delim === " ") && /^-?\d+,\d+$/.test(_t1)) _t1 = _t1.replace(",", ".");
+    var f = parseFloat(_t0), v = parseFloat(_t1);
     if (isFinite(f) && isFinite(v) && f > 0 && f <= 100000) pts.push([f, v]);
-  });
+  }
   pts.sort(function(a, b){ return a[0] - b[0]; });
   return pts;
 }
