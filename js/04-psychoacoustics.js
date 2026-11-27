@@ -295,7 +295,7 @@ function isoPhonFromSpl(splDb, f){
         _m = 0.5*(_a+_b);
         _s = splAt(_m);
         if (_s < splDb){ _a = _m; _sa = _s; } else { _b = _m; _sb = _s; }
-        if (_b - _a < 1e-9) break;
+        if (_b - _a < 1e-6) break; /* (vòng tự động 15:44, hướng C — ÁP DỤNG, vá code): cát tuyến cuối trong nhánh ngoài miền của isoPhonFromSpl bắt đầu sớm hơn ở khung < 1e-6 phon thay vì < 1e-9 — cùng lý do như nhánh trong miền (14:54): splAt trơn và gần tuyến tính trên khung 1e-6 phon nên nội suy tuyến tính qua (_a,_sa),(_b,_sb) đã đạt độ chính xác máy, bỏ ~10 vòng chia đôi thừa mỗi lần gọi ngoài miền; biểu thức cát tuyến và kẹp khung giữ nguyên từng toán hạng. Lab Node trên hàm thật trích verbatim (hidden_files/run_20261127_1544_C/lab/, extract.py + harness.js + bench.js): lệch giá trị tối đa 4,9e-7 phon trên 67.305 ca quét SPL (48.229/67.305 giống từng bit, phần còn lại lệch ≤4,9e-7 phon — dưới mọi cổng QA); khứ hồi ngoài miền không đổi (max 28,28 phon cả hai bản, đều ở vùng sàn Af vô nghĩa vật lý SPL ≤ −160 dB); đơn điệu 0 vi phạm; tốc độ đường ngoài miền paired-median xen kẽ 15 vòng 1,0888× thắng 14/15. Khối đã vá trong file trích lại khớp bản lab (MATCH). Không chạm solver/WASM/FIR/QA logic; aeV3 không đổi theo cấu trúc (không đo lại; gần nhất 468/482 ms ngày 2026-11-11). QA trình duyệt đầy đủ chưa chạy được trên VM (headless Chrome bị chặn Hatch WebGL). Lượt kế: nhóm D. */
       }
       var _r = _a + (splDb - _sa)*(_b - _a)/(_sb - _sa);
       if (!(_r >= _a && _r <= _b)) _r = 0.5*(_a+_b);
