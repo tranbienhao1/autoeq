@@ -122,17 +122,17 @@ function qaGdMaxLowOnly(){
       for (k = 0; k <= K1; k++) raw[k] += _bp[k];
     }
     /* (vòng tự động 02:24, hướng B — ÁP DỤNG, vá code): chuyển vị vòng cộng pha trong qaGdMaxLowOnly — trước đây mỗi điểm lưới k cộng dồn qua mọi band (đọc bandPh[i][k] nhảy giữa các mảng cho mọi k); nay khởi tạo raw[k]=0 rồi vòng ngoài duyệt band, vòng trong duyệt lưới cộng raw[k] += bandPh[i][k] tuần tự trong từng mảng pha — thứ tự cộng theo band 0..n-1 cho mỗi k giữ nguyên (0 + band0 + band1 ... đúng như s=0; s+=bandPh[0][k]; s+=bandPh[1][k]...) nên mọi double của raw/phU/gdMaxLow GIỐNG TỪNG BIT theo cấu trúc, kể cả coeffs rỗng (raw toàn 0), bandPh thiếu/NaN/Infinity (thứ tự cộng không đổi, ném đúng TypeError). Cùng mẫu vá qaPhaseGdData 19:06 (chuyển vị vòng cộng pha) áp sang hàm chưa từng chuyển vị này; khác hướng đã bác: hoist t.cos/t.sin trong wasmJsArray (22:54) — lượt này không đổi lượng giác/cache, chỉ đổi thứ tự duyệt vòng cộng đã có. Lab Node trên hàm thật trích verbatim (extract.py + make_new.py + harness.js + bench.js trong hidden_files/run_20261124_0224_B/, 3 lần bench độc lập): parity 16/16 kịch bản GIỐNG TỪNG BIT (Object.is trên gdMaxLow + QA_PHASE_LOW khóa/giá trị + invariant QA_PHASE_LOW_N; gồm cold 10/20 band multi-miss, warm all-hit, single-miss, lowPart-hit, prefill 390/400/401, FIR, cực đoan NaN/±Infinity/-0/1e308/subnormal, fs 0/44100/96000, null coeff, chuỗi guard 30 bước, fuzz 40 bộ); tốc độ paired-median xen kẽ 15 vòng: W1 warm-hit 20 band lần 1 1,2054x thắng 14/15, lần 2 1,0578x thắng 13/15, lần 3 1,2059x thắng 15/15; W2 warm-hit 10 band 1,1640x/1,1857x/1,1391x thắng 13/14/12; W3 single-miss trung tính 1,0024x/1,0372x/1,0631x thắng 8/9/10 (không hồi quy) — cải thiện ổn định trên đường steady-state (lowPart-hit của vòng guard) cả 3 lần. Không chạm solver/WASM/FIR/QA logic; aeV3 không đổi theo cấu trúc (không đo lại; gần nhất 468/482 ms ngày 2026-11-11). Bộ đếm lab-only vẫn 12. Lượt kế: nhóm C. Lab: hidden_files/run_20261124_0224_B/. */
+    /* (vòng tự động 10:37, hướng B — ÁP DỤNG, vá code): gộp vòng unwrap pha + vòng tính group-delay trong qaGdMaxLowOnly — khi phU[k] vừa tính xong, gd[k-1] đã đủ dữ liệu (a=max(0,k-2), b=k vì k<=K1<240) nên tính ngay trong cùng vòng lặp, bỏ vòng gd riêng (56 lần Math.max/Math.min + đọc lại phU ngoài thứ tự) và cập nhật QA6.gdMaxLow theo đúng thứ tự j tăng dần; biểu thức gd giữ nguyên từng toán hạng/thứ tự (-(phU[k]-phU[_ga])/grid.dw[_gj]/fs*1000) nên mọi double của phU/gdMaxLow GIỐNG TỪNG BIT theo cấu trúc, kể cả biên k=1 (gd[0] dùng phU[1]-phU[0]), NaN/±Infinity/-0 (biểu thức không đổi). Cùng mẫu vá qaPhaseGdData 06:47 áp sang hàm chưa từng gộp này; khác hướng đã bác: hoist t.cos/t.sin trong wasmJsArray (22:54) — lượt này không đổi lượng giác/cache, chỉ đổi cách duyệt vòng unwrap/gd đã có. Lab Node trên hàm thật trích verbatim (hidden_files/run_20261127_1037_B/lab/, 2 lần bench độc lập): parity 44/44 kịch bản GIỐNG TỪNG BIT cả 2 lần (Object.is trên gdMaxLow + QA_PHASE_LOW khóa/giá trị + QA_PHASE_LOW_N + grid.kMax; gồm cold 0/1/3/10/20 band × fs 44100/48000/96000/22050/0/NaN/Infinity/âm, FIR, cực đoan NaN/±Infinity/-0/subnormal/1e308, null/undefined/thiếu trường coeff, chuỗi guard 30 bước, fuzz 20 bộ, overflow 401, fs sweep); tốc độ paired-median xen kẽ 15 vòng: W1 warm-hit 20b lần 1 1,2421x thắng 15/15, lần 2 1,3049x thắng 15/15 (đảo thứ tự tạo context 1,2303x); W2 warm-hit 10b 1,3281x thắng 15/15; W3 single-miss 20b 1,2967x thắng 15/15; W4 cold multi-miss 20b 1,2603x thắng 15/15; control old-vs-old 1,0093x/0,9935x, new-vs-new 0,9799x (nhiễu VM ~1-2%) — cải thiện ổn định trên mọi workload. Không chạm solver/WASM/FIR/QA logic; aeV3 không đổi theo cấu trúc (không đo lại; gần nhất 468/482 ms ngày 2026-11-11). QA trình duyệt đầy đủ chưa chạy được trên VM (headless Chrome bị chặn Hatch WebGL). Lượt kế: nhóm C. */
+    QA6.gdMaxLow = null;
     phU[0] = raw[0];
     for (k = 1; k <= K1; k++){
       var d = raw[k] - raw[k-1];
       if (d > Math.PI) off -= 2*Math.PI; else if (d < -Math.PI) off += 2*Math.PI;
       phU[k] = raw[k] + off;
-    }
-    QA6.gdMaxLow = null;
-    for (k = 0; k <= kMax; k++){
-      var a = Math.max(0, k-1), b = Math.min(N, k+1);
-      var gdVal = -(phU[b] - phU[a])/grid.dw[k]/fs*1000;
-      if (freqs[k] <= 100 && (QA6.gdMaxLow === null || gdVal > QA6.gdMaxLow)) QA6.gdMaxLow = gdVal;
+      var _gj = k - 1;
+      var _ga = (_gj - 1 < 0) ? 0 : _gj - 1;
+      var gdVal = -(phU[k] - phU[_ga])/grid.dw[_gj]/fs*1000;
+      if (freqs[_gj] <= 100 && (QA6.gdMaxLow === null || gdVal > QA6.gdMaxLow)) QA6.gdMaxLow = gdVal;
     }
   } catch (e) {}
 }
