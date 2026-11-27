@@ -9,8 +9,45 @@
    làm bẩn layout/style của trang, buộc lần đọc kích thước canvas kế tiếp
    phải tính lại — chi phí thừa trong đường cập nhật khi kéo node. */
 function setTxt(id, v){ var el = $(id); if (el.textContent !== v) el.textContent = v; }
+var _preMemoSig = null;
+function _preSigHit(pm, bands, fs, wf, pk){
+  if (!pm || pm.length !== 1 + bands.length*5 + 3) return false;
+  for (var i = 0; i < bands.length; i++){
+    var b = bands[i], o = 1 + i*5, v;
+    v = pm[o]; if (v !== (b.on ? 1 : 0)) return false;
+    v = pm[o+1]; if (v !== b.type) return false;
+    v = pm[o+2]; if (v !== b.freq && !(v !== v && b.freq !== b.freq)) return false;
+    v = pm[o+3]; if (v !== b.gain && !(v !== v && b.gain !== b.gain)) return false;
+    v = pm[o+4]; if (v !== b.q && !(v !== v && b.q !== b.q)) return false;
+  }
+  var t = 1 + bands.length*5;
+  return pm[t] === fs && pm[t+1] === wf && pm[t+2] === pk;
+}
+function _preSigMake(bands, fs, wf, pk){
+  var a = new Array(1 + bands.length*5 + 3);
+  a[0] = bands.length;
+  for (var i = 0; i < bands.length; i++){
+    var b = bands[i], o = 1 + i*5;
+    a[o] = b.on ? 1 : 0; a[o+1] = b.type; a[o+2] = b.freq; a[o+3] = b.gain; a[o+4] = b.q;
+  }
+  var t = 1 + bands.length*5;
+  a[t] = fs; a[t+1] = wf; a[t+2] = pk;
+  return a;
+}
 function refreshDerived(){
-  computeAutoPre(displayFs);
+  /* (vòng tự động 20:54 nhóm D): memo hóa computeAutoPre theo chữ ký trạng thái — trước đây computeAutoPre (quét lưới 960 điểm + golden-section ~43 lần totalDbAt) chạy lại toàn bộ mỗi refreshDerived dù band không đổi (kéo slider pre-amp, hover/chọn band, updateAll không đổi band). Nay so sánh chữ ký dạng mảng phẳng (đúng các trường bandCoeffs đọc: on/type/freq/gain/q, + fs + khóa psycho sau khi gọi psychoCoeffs để PSY_CC.key hiện hành + cờ WASM; NaN coi bằng NaN như syncAeBandTable): trùng chữ ký thì maxPosDb/maxPosFreq giữ nguyên và chỉ cập nhật autoPreDb theo extraHeadDb hiện tại bằng đúng biểu thức cuối của computeAutoPre nên GIỐNG TỪNG BIT; đổi bất kỳ thành phần nào thì chạy computeAutoPre như cũ rồi nạp chữ ký mới. Lỗi khi so sánh/dựng chữ ký (vd band null) rơi về đường gốc. Lab (hidden_files/run_20261127_2054_D/lab/, hàm trích verbatim + harness, 2 lần bench độc lập): parity GIỐNG TỪNG BIT trên mọi kịch bản (band đổi/không đổi, fs đổi, extraHeadDb đổi, PSY đổi, WASM đổi, NaN, band null ném đúng lỗi); tốc độ paired-median xen kẽ: đường không đổi nhanh hơn rõ (~8x), đường đổi mỗi lần trung tính. Không chạm solver/WASM/FIR/QA logic; aeV3 không đổi theo cấu trúc (không đo lại; gần nhất 468/482 ms ngày 2026-11-11). QA trình duyệt đầy đủ chưa chạy được trên VM (headless Chrome bị chặn Hatch WebGL). Lượt kế: nhóm A. --- */
+  var _pk = null, _wf = 0, _sigOk = true, _hit = false;
+  try {
+    if (typeof psychoCoeffs === "function"){ psychoCoeffs(displayFs); _pk = (typeof PSY_CC !== "undefined" && PSY_CC) ? PSY_CC.key : null; }
+    _wf = (typeof WASM !== "undefined" && WASM && WASM.enabled) ? 1 : 0;
+    _hit = _preSigHit(_preMemoSig, bands, displayFs, _wf, _pk);
+  } catch (e) { _sigOk = false; _hit = false; }
+  if (_hit){
+    autoPreDb = (maxPosDb > 0) ? -(maxPosDb + 1.0 + extraHeadDb) : 0;
+  } else {
+    computeAutoPre(displayFs);
+    if (_sigOk){ try { _preMemoSig = _preSigMake(bands, displayFs, _wf, _pk); } catch (e) {} }
+  }
   setTxt("kvMaxPos", fmtDb(maxPosDb)+" dB");
   setTxt("kvMaxFreq", fmtFreq(Math.round(maxPosFreq)));
   setTxt("kvPreamp", fmtDb(appliedPreDb())+" dB");
