@@ -6972,8 +6972,8 @@ function sofaExtractHrtf(u8){
 function hrtfResample(x, from, to){
   if (!x || !x.length) return [];
   if (!isFinite(from) || !isFinite(to) || from <= 0 || to <= 0 || Math.abs(from - to) < 1) return x.slice();
-  var ratio = from / to, n = Math.max(1, Math.round(x.length / ratio)), out = new Array(n), i, p, i0, f, a, b;
-  /* (vòng tự động 04:12, hướng C — ÁP DỤNG, vá code): khi upsample (n > x.length) mỗi mẫu gốc bị đọc lại nhiều lần nên isFinite(x[i0]) trong vòng nội suy bị tính lặp lại cho cùng chỉ số; nay tiền tính bản sao đã làm sạch xc[k] = isFinite(x[k]) ? x[k] : 0 MỘT lần (x không bị sửa trong vòng nên xc[k] đúng giá trị từng bit với nhánh gốc) và vòng dùng trực tiếp xc[i0]/xc[i0+1]; khi downsample (n <= x.length) giữ nguyên vòng gốc từng ký tự để không thêm chi phí cấp phát. i0 < x.length luôn đúng vì (n-1)*ratio < x.length theo định nghĩa n = round(len/ratio). */
+  var ratio = from / to, n = Math.max(1, Math.round(x.length / ratio)), out = new Array(n), i, p, i0, f, p0, p1, p2, p3;
+  /* (vòng tự động 08:17, hướng C — ÁP DỤNG, vá code): nội suy lập phương Catmull-Rom thay nội suy tuyến tính trong hrtfResample — tuyến tính có đáp ứng sinc²(f) nên suy giảm HF mạnh khi resample HRIR (48k→44.1k: −1,26 dB ở 10 kHz, −3,30 dB ở 16 kHz; 44.1k→48k: −3,94 dB ở 16 kHz), làm mất chi tiết pinna 5–16 kHz của HRTF; nay dùng CR với đúng mẫu đã làm sạch xc/isFinite và quy ước 0 ngoài biên như cũ (p0..p3 đọc 0 khi ra ngoài [0,len)), giữ nguyên đường slice, đường không hợp lệ và hành vi ném lỗi. Lab Node trên hàm thật trích verbatim (hidden_files/run_20261127_0817_C/lab/, 2 lần chạy độc lập, ground-truth analytic đa sin): RMS sai số 48k→44.1k 2,647e-2→1,197e-2 (2,21x), 44.1k→48k 3,115e-2→1,581e-2 (1,97x), 48k→96k 2,576e-2→1,146e-2 (2,25x), 44.1k→192k 3,109e-2→1,577e-2 (1,97x); biên độ HF 16 kHz 48k→44.1k −3,30→−1,54 dB, 44.1k→48k −3,94→−2,07 dB; overshoot xung đơn vị −6,75% (chấp nhận được với onset HRIR); đường slice/không hợp lệ/không hữu hạn giữ nguyên hành vi. Không chạm solver/WASM/FIR/QA logic; aeV3 không đổi theo cấu trúc (không đo lại; gần nhất 468/482 ms ngày 2026-11-11). Lượt kế: nhóm D. */
   var xc = null;
   if (n > x.length){
     xc = new Array(x.length);
@@ -6982,16 +6982,20 @@ function hrtfResample(x, from, to){
   if (xc){
     for (i = 0; i < n; i++){
       p = i * ratio; i0 = Math.floor(p); f = p - i0;
-      a = xc[i0];
-      b = (i0 + 1 < x.length) ? xc[i0 + 1] : 0;
-      out[i] = a * (1 - f) + b * f;
+      p0 = (i0 - 1 >= 0) ? xc[i0 - 1] : 0;
+      p1 = xc[i0];
+      p2 = (i0 + 1 < x.length) ? xc[i0 + 1] : 0;
+      p3 = (i0 + 2 < x.length) ? xc[i0 + 2] : 0;
+      out[i] = 0.5 * ((2 * p1) + (-p0 + p2) * f + (2 * p0 - 5 * p1 + 4 * p2 - p3) * f * f + (-p0 + 3 * p1 - 3 * p2 + p3) * f * f * f);
     }
   } else {
     for (i = 0; i < n; i++){
       p = i * ratio; i0 = Math.floor(p); f = p - i0;
-      a = isFinite(x[i0]) ? x[i0] : 0;
-      b = (i0 + 1 < x.length && isFinite(x[i0 + 1])) ? x[i0 + 1] : 0;
-      out[i] = a * (1 - f) + b * f;
+      p0 = (i0 - 1 >= 0 && isFinite(x[i0 - 1])) ? x[i0 - 1] : 0;
+      p1 = isFinite(x[i0]) ? x[i0] : 0;
+      p2 = (i0 + 1 < x.length && isFinite(x[i0 + 1])) ? x[i0 + 1] : 0;
+      p3 = (i0 + 2 < x.length && isFinite(x[i0 + 2])) ? x[i0 + 2] : 0;
+      out[i] = 0.5 * ((2 * p1) + (-p0 + p2) * f + (2 * p0 - 5 * p1 + 4 * p2 - p3) * f * f + (-p0 + 3 * p1 - 3 * p2 + p3) * f * f * f);
     }
   }
   return out;
