@@ -15,8 +15,13 @@ function qaGdMaxLowOnly(){
     var N = 240;
     var grid = QA_GD_GRID[fs];
     if (!grid){
-      var freqs0 = [];
-      for (var k0 = 0; k0 <= N; k0++) freqs0.push(20*Math.pow(1000, k0/N));
+      /* (vong tu dong 17:23, huong B): dung chung mang luoi QA_GD_FREQS (js/08) khi tao grid moi trong qaGdMaxLowOnly — freqs[k]=20*1000^(k/240) khong phu thuoc fs nen dung MOT lan roi tai dung tham chieu cho moi grid, thay vi tinh lai 241 Math.pow moi lan tao grid cho fs moi (doi sample rate / quet fs trong guard); dw van tinh lai theo fs bang dung bieu thuc goc nen freqs/dw/gdMaxLow giong tung bit theo cau truc (khong code nao sua grid.freqs — chi doc, da kiem chung bang grep). Lab Node tren ham that trich verbatim (hidden_files/run_20261127_1721_B/lab/, 2 lan bench doc lap): parity 491/491 kiem tra GIONG TUNG BIT (Object.is tren gdMaxLow + deepEq tren freqs/dw/kMax moi grid; gom cold IIR/FIR, fs-sweep 12 fs, warm-repeat, fs 0/NaN/Infinity/am, grid-reset, both-reset, prefill-grid, fuzz 40x2; kiem tra rieng: ban moi chia se dung 1 tham chieu QA_GD_FREQS cho moi fs, ban cu moi grid 1 mang rieng nhung gia tri bang nhau tung phan tu); toc do paired-median xen ke 15 vong: W1 fs-sweep FIR grid-create (30 fs, reset QA_GD_GRID moi rep) lan 1 1,3919x thang 15/15, lan 2 1,3881x thang 14/15; W2 warm-repeat control trung tinh 1,0038x/0,9724x (khong hoi quy duong nong). Khong cham solver/WASM/FIR/QA logic; aeV3 khong doi theo cau truc (khong do lai; gan nhat 468/482 ms ngay 2026-11-11). QA trinh duyet day du chua chay duoc tren VM (headless Chrome bi chan Hatch WebGL). Luot ke: nhom C. */
+      var freqs0 = (typeof QA_GD_FREQS !== "undefined") ? QA_GD_FREQS : null;
+      if (!freqs0){
+        freqs0 = [];
+        for (var k0 = 0; k0 <= N; k0++) freqs0.push(20*Math.pow(1000, k0/N));
+        if (typeof QA_GD_FREQS !== "undefined") QA_GD_FREQS = freqs0;
+      }
       var dw0 = new Float64Array(N + 1);
       for (var k1 = 0; k1 <= N; k1++){
         var a0 = Math.max(0, k1-1), b0 = Math.min(N, k1+1);
