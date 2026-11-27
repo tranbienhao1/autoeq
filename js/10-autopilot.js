@@ -32,19 +32,25 @@ function qaGdMaxLowOnly(){
       QA_GD_GRID[fs] = grid;
     }
     var freqs = grid.freqs;
+    /* (vòng tự động 19:24, hướng B): nhánh FIR dùng kMax đã cache thay vì quét 241 điểm lưới — gdValF là hằng số nên vòng cũ chỉ đặt gdMaxLow=gdValF khi tồn tại điểm freq<=100 (tức kMax>=0), ngược lại giữ null. Chỉ tin cache khi chính hàm này đã tính kMax bằng quét thật (cờ _kMaxOk đặt cùng lúc ghi cache; grid prefill từ ngoài không có cờ thì rơi về đúng vòng quét cũ) nên kết quả giống từng bit với bản quét mọi trường hợp. */
+    var kMax;
+    if (grid.kMax !== undefined) kMax = grid.kMax;
+    else { kMax = -1; for (var kk = 0; kk <= N; kk++){ if (freqs[kk] <= 100) kMax = kk; } grid.kMax = kMax; grid._kMaxOk = true; }
     if (mode === "fir"){
       var D = (firLen - 1)/2;
       var gdValF = D/fs*1000;
-      QA6.gdMaxLow = null;
-      for (var kf = 0; kf <= N; kf++){
-        if (freqs[kf] <= 100 && (QA6.gdMaxLow === null || gdValF > QA6.gdMaxLow)) QA6.gdMaxLow = gdValF;
+      if (grid._kMaxOk){
+        QA6.gdMaxLow = (kMax >= 0) ? gdValF : null;
+      } else {
+        QA6.gdMaxLow = null;
+        for (var kf = 0; kf <= N; kf++){
+          if (freqs[kf] <= 100 && (QA6.gdMaxLow === null || gdValF > QA6.gdMaxLow)) QA6.gdMaxLow = gdValF;
+        }
       }
       return;
     }
     /* (vòng tự động 07:13, hướng B — ÁP DỤNG, vá code): cache kMax (chỉ số lưới cuối cùng có freqs<=100 Hz) vào grid.kMax — lưới freqs chỉ phụ thuộc N=240 cố định (không phụ thuộc fs) nên kMax không đổi theo lần gọi; trước đây mỗi lần gọi qaGdMaxLowOnly đều quét lại 241 điểm lưới chỉ để tìm kMax, nay tính MỘT lần rồi tái dùng (grid do qaPhaseGdData tạo cũng nhận thêm trường này an toàn vì caller đó chỉ đọc .freqs/.dw/.cw/.sw/.cw2/.sw2). Quét gốc giữ nguyên từng toán hạng/thứ tự nên kMax và mọi kết quả GIỐNG TỪNG BIT theo cấu trúc. Lab Node trên hàm thật trích verbatim (hidden_files/run_20261124_0710_B/, 2 lần bench độc lập): parity 15 kịch bản + warm-repeat + guard-like 30 bước + fuzz 200 GIỐNG TỪNG BIT; tốc độ warm-hit paired-median xen kẽ 15 vòng: lần 1 20 band 1,0321x thắng 13/15; lần 2 20 band 1,0698x thắng 13/15, 10 band 1,1195x thắng 14/15 (control old-vs-old 0,9944x). Ứng viên phụ gộp vòng unwrap+gd trong cùng hàm bị bác (10 band lần 2 chậm hơn 0,9590x, không ổn định) — KHÔNG thử lại hướng gộp vòng đó. Không chạm solver/WASM/FIR/QA logic; aeV3 không đổi theo cấu trúc (không đo lại; gần nhất 468/482 ms ngày 2026-11-11). QA trình duyệt đầy đủ chưa chạy được trên VM (headless Chrome bị chặn Hatch WebGL). Lượt kế: nhóm C. Lab: hidden_files/run_20261124_0710_B/. */
-    var kMax;
-    if (grid.kMax !== undefined) kMax = grid.kMax;
-    else { kMax = -1; for (var kk = 0; kk <= N; kk++){ if (freqs[kk] <= 100) kMax = kk; } grid.kMax = kMax; }
+
     if (kMax < 0){ QA6.gdMaxLow = null; return; }
     if (kMax + 1 > 56){
       var dFull = qaPhaseGdData(fs);
