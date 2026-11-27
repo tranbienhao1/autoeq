@@ -754,9 +754,10 @@ function dbScoreBase(q, name){
     if (_ce.toks.indexOf(tok) >= 0) score += 30;
     else if (nc.indexOf(tok) >= 0) score += 18;
     else {
-      var i = 0, tc = tok.charCodeAt(0); /* vòng tự động 05:08 nhóm D: cache mã ký tự tok.charCodeAt(i) trong vòng subsequence của dbScoreBase — trước đây mỗi ô j đều gọi lại tok.charCodeAt(i) dù i chỉ đổi khi khớp; nay đọc MỘT lần rồi cập nhật khi i tăng (cùng toán hạng/thứ tự so sánh nên GIỐNG TỪNG BIT theo cấu trúc; tok không rỗng vì đã qua if (!tok) continue) */
-      for (var j = 0; j < nc.length && i < tok.length; j++) if (nc.charCodeAt(j) === tc){ i++; if (i < tok.length) tc = tok.charCodeAt(i); }
-      if (i === tok.length) score += 8;
+      /* (vòng tự động 18:24 nhóm D): kiểm tra subsequence bằng indexOf tăng dần thay cho vòng quét charCodeAt — vòng cũ quét tới toàn bộ nc (tới ~40 ô, mỗi ô 1 lần charCodeAt) mỗi khi token không khớp chuỗi con; nay mỗi ký tự token tìm vị trí xuất hiện sớm nhất bằng indexOf (thuật toán greedy cho cùng kết quả subsequence như vòng cũ: vị trí khớp từng ký tự giống hệt, nên điều kiện cộng 8 GIỐNG TỪNG BIT; tok/nc chỉ chứa [a-z0-9] sau dbNormStr nên không có vấn đề surrogate). Khác hướng đã bác: tiền tính mảng char-code (17:34 hôm nay — chậm hơn), cache ncCodes (04:17 — không đo được cải thiện) — lượt này đổi hẳn cơ chế tìm kiếm. */
+      var _sp = -1, _sok = true;
+      for (var _si = 0; _si < tok.length; _si++){ _sp = nc.indexOf(tok[_si], _sp + 1); if (_sp < 0){ _sok = false; break; } }
+      if (_sok) score += 8;
     }
   }
   return score;
