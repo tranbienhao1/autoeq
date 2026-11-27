@@ -88,7 +88,24 @@ function dbParseMeasurement(text, filename){
       continue;
     }
     var delim = raw.indexOf("\t") >= 0 ? "\t" : (raw.indexOf(";") >= 0 ? ";" : (raw.indexOf(",") >= 0 ? "," : " "));
-    var toks = (delim === " " ? raw.split(/\s+/) : raw.split(delim)).map(function(t){ return t.replace(/^"+|"+$/g, "").trim(); }).filter(function(t){ return t.length > 0; });
+    /* (vòng tự động 03:35 nhóm D, bản đa file): viết lại vòng tách token trong dbParseMeasurement — trước đây mỗi dòng dựng mảng split rồi map/filter với 2 closure + 2 mảng tạm dù chỉ cần 2 token đầu (f, v); nay quét thủ công theo delimiter đơn ký tự (tab/;/,) hoặc split whitespace cho delimiter khoảng trắng, chỉ thu tối đa 2 token khác rỗng đầu tiên (toks[0]/toks[1] và điều kiện toks.length<2 không đổi vì các token sau không ảnh hưởng), biểu thức bóc ngoặc kép/trim giữ nguyên từng toán hạng nên kết quả GIỐNG TỪNG BIT theo cấu trúc. --- */
+    var toks = [];
+    if (delim === " "){
+      var _parts = raw.split(/\s+/);
+      for (var _pi = 0; _pi < _parts.length && toks.length < 2; _pi++){
+        var _tok = _parts[_pi].replace(/^"+|"+$/g, "").trim();
+        if (_tok.length > 0) toks.push(_tok);
+      }
+    } else {
+      var _start = 0;
+      for (var _ci = 0; _ci <= raw.length && toks.length < 2; _ci++){
+        if (_ci === raw.length || raw.charAt(_ci) === delim){
+          var _tok2 = raw.slice(_start, _ci).replace(/^"+|"+$/g, "").trim();
+          if (_tok2.length > 0) toks.push(_tok2);
+          _start = _ci + 1;
+        }
+      }
+    }
     if (toks.length < 2){ if (/[0-9]/.test(first)) bad.push(li + 1); else skipped++; continue; }
     function num(t){
       if ((delim === ";" || delim === "\t" || delim === " ") && /^-?\d+,\d+$/.test(t)) t = t.replace(",", ".");
