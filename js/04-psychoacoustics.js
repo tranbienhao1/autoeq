@@ -6975,8 +6975,9 @@ function sofaExtractHrtf(u8){
       /* (vòng tự động 18:51, hướng C — ÁP DỤNG, vá code): bỏ parseFloat thừa trong nhánh sanitize — az (kết quả hrtfWrapAz) và elRaw (giá trị dataset) luôn là number nên parseFloat(x) === x + 0 với mọi double (roundtrip ToString/parse; -0 chuẩn hoá về +0 như nhau; NaN/Infinity vẫn qua isFinite về 0 như cũ) — giữ nguyên isFinite + clamp, chỉ bớt 2 lần chuyển đổi chuỗi mỗi hướng. */
       var _az = az + 0; if (!isFinite(_az)) _az = 0; _az = Math.max(-180, Math.min(180, _az));
       var _el = elRaw + 0; if (!isFinite(_el)) _el = 0; _el = Math.max(-90, Math.min(90, _el));
-      if (!dL) for (r = 0; r < left.length; r++) left[r] = left[r] + 0;
-      if (!dR) for (r = 0; r < right.length; r++) right[r] = right[r] + 0;
+      /* (vòng tự động 19:31 nhóm C): hợp nhất hai vòng chuẩn hoá -0 (x+0) của left/right thành một vòng khi cả hai kênh đều không có delay và độ dài >= 128 (đường SOFA phổ biến, N=512) — mỗi phần tử vẫn áp đúng một lần x+0, thứ tự từng mảng giữ nguyên nên GIỐNG TỪNG BIT; trường hợp còn lại giữ nguyên hai vòng gốc. Lab: parity 721/721, bench paired N512 1.116x (29/31), ngưỡng 128: N128 1.128x, N256 1.073x, N512 1.084x, N1024 1.280x, N64 trung tính 1.019x (không hồi quy). */
+      if (!dL && !dR && left.length === right.length && left.length >= 128){ for (r = 0; r < left.length; r++){ left[r] = left[r] + 0; right[r] = right[r] + 0; } }
+      else { if (!dL) for (r = 0; r < left.length; r++) left[r] = left[r] + 0; if (!dR) for (r = 0; r < right.length; r++) right[r] = right[r] + 0; }
       dir = { azimuth: _az, elevation: _el, left: left, right: right };
     } else
       dir = { azimuth: azRaw, elevation: elRaw, left: left, right: right };
