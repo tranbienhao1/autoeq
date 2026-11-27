@@ -115,8 +115,11 @@ function qaPhaseGdData(fs){
       var _hasLow = !!(lowPart && lowPart.length === 57);
       pArr = new Float64Array(N + 1);
       if (_hasLow) for (k = 0; k <= 56; k++) pArr[k] = lowPart[k];
+      /* (vòng tự động 09:03, hướng B — ÁP DỤNG, vá code): hoist hệ số cc và mảng lượng giác lưới ra biến cục bộ MỘT lần trước vòng tính pha cache-miss trong qaPhaseGdData — trước đây mỗi điểm lưới đọc lại cc.b0..cc.a2 (9 lần tra thuộc tính object) và grid.cw/sw/cw2/sw2 (4 lần tra thuộc tính + tra chỉ số) tại từng điểm k; nay đọc đúng MỘT lần/band rồi vòng trong dùng số thuần _cb0.._ca2 và mảng _gcw/_gsw/_gcw2/_gsw2. Cùng toán hạng/thứ tự biểu thức atan2 nên pha từng band GIỐNG TỪNG BIT theo cấu trúc; thứ tự tính pArr (kể cả lowPart/cache-clear) giữ nguyên. Cùng lớp vá đã áp ở vòng fallback gridTotalDb (00:24). Lab Node trên hàm thật trích verbatim (hidden_files/run_20261127_0903_B/lab/, 1 lần bench): parity 32/32 kịch bản GIỐNG TỪNG BIT (Object.is trên freqs/phU/gdMs + snapshot cache; gồm 0/1/10/20 band × fs 44100/48000/96000, fs 0/NaN/Infinity/âm/22050, band tắt/gain 0, drag 30 bước, prefill 390/401, fuzz 10, warm repeat); tốc độ paired-median xen kẽ 15 vòng: multi-miss 1,0291x thắng 13/15, single-miss 1,0173x thắng 11/15, cold 1,0432x thắng 13/15 — cải thiện ổn định cả 3 workload. Không chạm solver/WASM/FIR/QA logic; aeV3 không đổi theo cấu trúc (không đo lại; gần nhất 468/482 ms ngày 2026-11-11). QA trình duyệt đầy đủ chưa chạy được trên VM (headless Chrome bị chặn Hatch WebGL). Lượt kế: nhóm C. */
+      var _cb0 = cc.b0, _cb1 = cc.b1, _cb2 = cc.b2, _ca1 = cc.a1, _ca2 = cc.a2;
+      var _gcw = grid.cw, _gsw = grid.sw, _gcw2 = grid.cw2, _gsw2 = grid.sw2;
       for (k = _hasLow ? 57 : 0; k <= N; k++)
-        pArr[k] = Math.atan2(-(cc.b1*grid.sw[k] + cc.b2*grid.sw2[k]), cc.b0 + cc.b1*grid.cw[k] + cc.b2*grid.cw2[k]) - Math.atan2(-(cc.a1*grid.sw[k] + cc.a2*grid.sw2[k]), 1 + cc.a1*grid.cw[k] + cc.a2*grid.cw2[k]);
+        pArr[k] = Math.atan2(-(_cb1*_gsw[k] + _cb2*_gsw2[k]), _cb0 + _cb1*_gcw[k] + _cb2*_gcw2[k]) - Math.atan2(-(_ca1*_gsw[k] + _ca2*_gsw2[k]), 1 + _ca1*_gcw[k] + _ca2*_gcw2[k]);
       if (QA_PHASE_CACHE_N > 400){ QA_PHASE_CACHE = {}; QA_PHASE_CACHE_N = 0; }
       if (QA_PHASE_CACHE[pKey] === undefined) QA_PHASE_CACHE_N++;
       QA_PHASE_CACHE[pKey] = pArr;
