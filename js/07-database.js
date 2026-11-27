@@ -1617,8 +1617,16 @@ function objectiveS(bi, trial){
     for (var bi3 = 0; bi3 < bands.length; bi3++) nmBand(bi3);
     if (pass < 2) lsRebalance();
   }
+  /* (vòng tự động 12:54, hướng A — ÁP DỤNG, vá code): bỏ tính lại tot cuối hwSolve khi vòng kẹp cuối không đổi band nào — trước đây luôn gọi aeTotalCurve(bands, freqs) = m lần rbjCoeffs + m×n lần log10 dù các band đã được kẹp+quy tròn trong toBand/lsGainStep/nmBand nên vòng kẹp cuối gần như luôn no-op; nay chụp [type,freq,gain,q] trước vòng kẹp, so sánh === từng trường sau vòng kẹp (bỏ lỗ thưa như forEach gốc), chỉ tính lại tot khi có band đổi; khi không đổi, tot hiện tại đã GIỐNG TỪNG BIT với aeTotalCurve(bands) theo bất biến đồng bộ (tot luôn bằng tổng cộng dồn curves theo thứ tự band 0..m-1 từ fill(0), curves[i]=aeBandCurve(bands[i]) cùng rbjCoeffs/cache lượng giác/fs AE_FS như aeTotalCurve; band gain 0 cộng +0 không đổi tot vì tot không bao giờ -0, khớp nhánh bỏ qua band identity của aeTotalCurve khi cache hữu hạn). Lab Node trên hàm thật trích verbatim (extract.py + make_new.py + harness.js trong hidden_files/run_20261127_1254_A/lab/, 2 lần chạy độc lập): parity 98/98 GIỐNG TỪNG BIT cả 2 lần (Object.is sâu trên bands/total + loại lỗi; 95 ca thành công gồm 4 profile × 5 dạng err + lưới nhỏ 9/3/1/0 + cực đoan NaN/±Infinity/1e308/subnormal + W toàn 0/NaN/âm/thưa + tần số NaN/Infinity/thưa + biến thể profile maxBands 0/1/2/24, notch/bandpass/lowpass-only, gainStep, gain chặt + 40 fuzz; 2 ca lỗi P null/undefined khớp loại lỗi; determinism OK; đường bỏ qua kích hoạt 13/13 ca đo); tốc độ khối aeTotalCurve bỏ qua ~1,78–1,88 ms/lần gọi (20 band × 240 điểm), toàn hwSolve paired-median xen kẽ 15 vòng trung tính không hồi quy (1,0008–1,0078× lần 1; 0,9955–1,0072× lần 2) đúng kỳ vọng vì khối cuối chỉ là phần nhỏ của hàm. Không chạm solver/WASM/FIR/QA logic; aeV3 không đổi theo cấu trúc (không chạm aeSolve; gần nhất 468/482 ms ngày 2026-11-11). Bộ đếm lab-only vẫn 12. Lượt kế: nhóm B. Lab: hidden_files/run_20261127_1254_A/lab/. */
+  var _hwSnap = bands.map(function(b){ return [b.type, b.freq, b.gain, b.q]; });
   bands.forEach(function(b){ hwClampBand(b, P); });
-  tot = aeTotalCurve(bands, freqs);
+  var _hwClamped = false;
+  for (var _hci = 0; _hci < bands.length; _hci++){
+    if (!(_hci in bands)) continue;
+    var _hb = bands[_hci], _hs = _hwSnap[_hci];
+    if (_hb.type !== _hs[0] || _hb.freq !== _hs[1] || _hb.gain !== _hs[2] || _hb.q !== _hs[3]){ _hwClamped = true; break; }
+  }
+  if (_hwClamped) tot = aeTotalCurve(bands, freqs);
   return { bands: bands, total: tot, ms: performance.now() - t0 };
 }
 function hwPreamp(bandList){
