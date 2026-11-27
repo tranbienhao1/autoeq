@@ -308,7 +308,7 @@ function isoPhonFromSpl(splDb, f){
     m = 0.5*(a+b);
     s = splAt(m);
     if (s < splDb){ a = m; sa = s; } else { b = m; sb = s; }
-    if (b - a < 1e-9) break;
+    if (b - a < 1e-6) break; /* (vòng tự động 14:54, hướng C — ÁP DỤNG, vá code): cát tuyến cuối trong isoPhonFromSpl bắt đầu sớm hơn ở khung < 1e-6 phon thay vì < 1e-9 — splAt trơn và gần tuyến tính trên khung 1e-6 phon nên nội suy tuyến tính qua (a,sa),(b,sb) đã đạt độ chính xác máy, bỏ ~10 vòng chia đôi thừa; biểu thức cát tuyến và kẹp khung giữ nguyên từng toán hạng. Lab Node trên hàm thật trích verbatim (hidden_files/run_20261127_1454_C/lab/, 1 lần chạy): khứ hồi tối đa giữ nguyên 8,53e-14 phon (0 ca > 0,05), đơn điệu 0 vi phạm, lệch giá trị tối đa 7,1e-14 phon so với bản cũ (dưới mọi cổng QA); tốc độ đường chia đôi paired-median xen kẽ 30 vòng 1,3149x thắng 30/30. Không chạm solver/WASM/FIR/QA logic; aeV3 không đổi theo cấu trúc (không đo lại; gần nhất 468/482 ms ngày 2026-11-11). QA trình duyệt đầy đủ chưa chạy được trên VM (headless Chrome bị chặn Hatch WebGL). Lượt kế: nhóm D. */
   }
   /* Buoc cat tuyen cuoi tren khung [a,b] da hep (<1e-9 phon): splAt tron
      va gan tuyen tinh tren khung hep nen noi suy tuyen tinh qua (a,sa),
