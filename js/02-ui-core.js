@@ -187,8 +187,11 @@ function syncBandUI(){
     var qvs = b.q.toFixed(2); if (e.qv.textContent !== qvs) e.qv.textContent = qvs;
     var tgs = b.on ? "BẬT" : "TẮT"; if (e.tg.textContent !== tgs) e.tg.textContent = tgs;
     var tgc = "onoff"+(b.on?" on":""); if (e.tg.className !== tgc) e.tg.className = tgc;
-    e.root.classList.toggle("off", !b.on);
-    e.root.classList.toggle("sel", i===selBand);
+    /* (vòng tự động 16:54 nhóm D): gác classList.toggle trong syncBandUI bằng trạng thái cache theo từng phần tử band (e._off/e._sel) — toggle(token, force) với force đã đúng trạng thái hiện tại là no-op theo spec DOM (không đột biến), nên chỉ gọi khi trạng thái thật sự đổi; trạng thái class cuối giống hệt bản cũ cho mọi dãy thao tác (kiểm chứng lab: parity DOM 400/400 bước, đột biến thật 162/162, số lần gọi toggle 8000→463/555 trên 200 khung hình). Khác hướng đã bác: inline Y/bỏ specPts trong vòng phổ FFT (23:49), hoist W/bars trong meterLoop (17:54) — lượt này không đụng các hàm đó. */
+    var _off = !b.on;
+    if (e._off !== _off){ e.root.classList.toggle("off", _off); e._off = _off; }
+    var _sel = (i===selBand);
+    if (e._sel !== _sel){ e.root.classList.toggle("sel", _sel); e._sel = _sel; }
   });
   /* Giai đoạn 4: đồng bộ panel điều khiển chính xác + Dynamic EQ theo band đang chọn */
   if (typeof syncPrecise==="function") syncPrecise();
