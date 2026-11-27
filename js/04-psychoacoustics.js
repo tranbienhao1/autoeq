@@ -7022,8 +7022,14 @@ function hrtfResample(x, from, to){
         _kernCache[_frac] = _kern;
       }
       var _m0 = Math.max(-_hwi, Math.ceil(_frac - _hw), -_ip), _m1 = Math.min(_hwi, Math.floor(_frac + _hw), x.length - 1 - _ip);
-      var _s = 0, _wsum = 0;
-      for (var _mm = _m0; _mm <= _m1; _mm++){ var _wk = _kern[_mm + _hwi]; _s += _wk * _xc[_ip + _mm]; _wsum += _wk; }
+      /* (vòng tự động 06:24, hướng C — ÁP DỤNG, vá code): tổng bù Kahan cho hai bộ tích lũy _s/_wsum trong nhánh windowed-sinc của hrtfResample — trước đây cộng dồn ngây thơ theo thứ tự _mm tăng dần nên sai số tích lũy O(n·ε) khi HRIR có dải động rộng/triệt tiêu; nay dùng biến bù _cs/_cw (cùng mẫu Kahan đã áp trong loudFitError/upSolverReport) giữ nguyên thứ tự cộng và phép chia _s/_wsum, kèm guard isFinite rơi về cộng thuần khi _s/_wsum không hữu hạn (giữ bit-identical đường tràn/không hữu hạn). Lab Node trên hàm thật trích verbatim (hidden_files/run_20261128_0624_C/lab/, tham chiếu double-double TwoSum): sai số tối đa trên 7 fixture đối kháng giảm 1,5–24× (48k→44.1k adv16 1,5×, 96k→48k 8×, 48k→32k 10×, const±1e16 24×, tiny+big 8×, mild 2×); parity đường không downsample + 1892 đầu ra tràn/không hữu hạn khớp từng bit; tốc độ vòng tích lũy trong ngữ cảnh trình duyệt (main-context) chậm ~1,9× (đường import/rebuild, ~0,7 ms/HRIR 512 mẫu — chấp nhận đổi lấy độ chính xác). Không chạm solver/WASM/FIR/QA logic; aeV3 không đổi theo cấu trúc (không đo lại; gần nhất 468/482 ms ngày 2026-11-11). QA trình duyệt đầy đủ chưa chạy được trên VM (headless Chrome bị chặn Hatch WebGL). Lượt kế: nhóm D. */
+      var _s = 0, _wsum = 0, _cs = 0, _cw = 0;
+      for (var _mm = _m0; _mm <= _m1; _mm++){
+        var _wk = _kern[_mm + _hwi];
+        var _y = _wk * _xc[_ip + _mm];
+        if (isFinite(_s) && isFinite(_y)){ var _ky = _y - _cs; var _kt = _s + _ky; _cs = (_kt - _s) - _ky; _s = _kt; } else _s += _y;
+        if (isFinite(_wsum) && isFinite(_wk)){ var _kw = _wk - _cw; var _ktw = _wsum + _kw; _cw = (_ktw - _wsum) - _kw; _wsum = _ktw; } else _wsum += _wk;
+      }
       out[i] = _wsum !== 0 ? _s / _wsum : 0;
     }
     return out;
