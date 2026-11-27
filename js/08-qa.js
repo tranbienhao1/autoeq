@@ -41,6 +41,7 @@ function qaActiveCoeffs(fs){
 var QA_PHASE_CACHE = {};
 var QA_PHASE_CACHE_N = 0; /* bo dem so khoa QA_PHASE_CACHE cho qaPhaseGdData: thay Object.keys(...).length moi lan miss bang phep so sanh so nguyen, doi xung voi QA_PHASE_LOW_N o qaGdMaxLowOnly; chi cap nhat tai dung diem gan them/xoa toan bo QA_PHASE_CACHE trong qaPhaseGdData, gia tri luon bang Object.keys(QA_PHASE_CACHE).length */
 var QA_GD_GRID = {};
+var QA_GD_FREQS = null; /* luoi tan so dung chung cho moi grid QA_GD_GRID (vong tu dong 16:29, huong B): freqs[k]=20*1000^(k/240) khong phu thuoc fs nen dung MANG goc cho moi fs, chi dw phai tinh lai theo fs; khong co code nao sua grid.freqs (chi doc) nen chia se tham chieu la an toan va gia tri tung bit giong ban dung lai moi lan */
 var QA_PHASE_LOW = {}; /* pha rieng k=0..56 cho qaGdMaxLowOnly (vong tu dong 18:24, huong B) */
 var QA_PHASE_LOW_N = 0; /* bo dem so khoa QA_PHASE_LOW cho qaGdMaxLowOnly: thay Object.keys(...).length moi lan miss (cap phat mang lon khi cache gan 400 khoa) bang phep so sanh so nguyen; chi cap nhat tai dung cac diem gan them/xoa toan bo QA_PHASE_LOW trong qaGdMaxLowOnly, gia tri luon bang Object.keys(QA_PHASE_LOW).length */
 var QA_PHASE_KEY_WM = (typeof WeakMap !== "undefined") ? new WeakMap() : null; /* cache khoa pKey theo identity object he so (vong tu dong 00:24, huong B): doi tuong he so tu bandCoeffs/psychoCoeffs giu nguyen tham chieu khi tham so khong doi nen tra khoa da dung san thay vi noi lai chuoi 5 so moi lan goi; kiem tra fs truoc khi dung lai, moi truong hop khac (object moi sau reset BAND_CC, doi fs, khong co WeakMap) roi ve cach noi chuoi goc - cung chuoi khoa nen QA_PHASE_CACHE/QA_PHASE_LOW dung chung khong doi */
@@ -54,8 +55,13 @@ function qaPhaseGdData(fs){
      và 2*Math.PI*(freqs[b]-freqs[a])/fs nên freqs/dw giống từng bit, gdMs không đổi. */
   var grid = QA_GD_GRID[fs];
   if (!grid){
-    var freqs0 = [];
-    for (k = 0; k <= N; k++) freqs0.push(20*Math.pow(1000, k/N));
+    /* (vòng tự động 16:29, hướng B — ÁP DỤNG, vá code): dùng chung mảng lưới tần số QA_GD_FREQS cho mọi fs — freqs[k]=20*Math.pow(1000,k/N) với N=240 cố định không phụ thuộc fs nên dựng MỘT lần rồi tái dùng tham chiếu cho mọi grid mới, thay vì tính lại 241 lần Math.pow mỗi khi tạo grid cho fs mới (đổi sample rate / quét fs trong QA); dw vẫn tính lại theo fs bằng đúng biểu thức gốc nên dw/phU/gdMs giống từng bit theo cấu trúc (cùng giá trị double, không code nào sửa grid.freqs — chỉ đọc). Lab Node trên hàm thật trích verbatim (hidden_files/run_20261127_1629_B/lab/, 2 lần bench độc lập): parity 651/651 kiểm tra GIỐNG TỪNG BIT cả 2 lần (Object.is trên freqs/phU/gdMs + fir; gồm cold 10/20 band × fs sweep, all-off 30 fs + grid reset, drag 30 bước, FIR toggling, fs 0/NaN/Infinity/âm, warm-repeat, mixed on/off, prefill cache, fuzz 40, rỗng, null-coeff ném đúng TypeError; kiểm tra riêng: giá trị freqs hai bản bằng nhau từng phần tử, bản mới chia sẻ đúng 1 tham chiếu mảng cho mọi fs và QA_GD_FREQS trỏ đúng mảng đó); tốc độ paired-median xen kẽ 15 vòng: W1 fs-sweep all-off (đường dựng grid) lần 1 1,2536x thắng 14/15, lần 2 1,2628x thắng 14/15; W2 warm-repeat (memoize hit, đường không đổi) trung tính 0,9897x/0,9940x; W3 drag single-miss (grid đã có, đường không đổi) trung tính 1,0015x/0,9856x — không hồi quy đường nóng. Không chạm solver/WASM/FIR/QA logic; aeV3 không đổi theo cấu trúc (không đo lại; gần nhất 468/482 ms ngày 2026-11-11). QA trình duyệt đầy đủ chưa chạy được trên VM (headless Chrome bị chặn Hatch WebGL). Lượt kế: nhóm C. */
+    var freqs0 = QA_GD_FREQS;
+    if (!freqs0){
+      freqs0 = [];
+      for (k = 0; k <= N; k++) freqs0.push(20*Math.pow(1000, k/N));
+      QA_GD_FREQS = freqs0;
+    }
     var dw0 = new Float64Array(N + 1);
     for (k = 0; k <= N; k++){
       var a0 = Math.max(0, k-1), b0 = Math.min(N, k+1);
