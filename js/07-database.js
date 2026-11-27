@@ -767,12 +767,22 @@ function dbRenderResults(){
       }
       _thresh = _top[_K - 1];
     }
+    /* (vòng tự động 07:09 nhóm D): tránh tính lại điểm nền trong pha 2 của dbRenderResults — dbScore(q, name) trước đây gọi lại dbScoreBase(q, name) (2 lần tra Map + vòng token) cho MỌI mục sống sót dù _base[_di2] đã là đúng giá trị đó (cùng q, cùng tên, cache đã nạp ở pha 1) rồi mới cộng phần Lev. Nay cộng thẳng phần Lev của dbScore vào _base[_di2]: qc/nc lấy từ _dbScoreQCache/_dbScoreCache đã nạp (đường fallback dbNormStr giữ nguyên như dbScore khi cache trượt), điều kiện |Δlen|<8 và biểu thức Math.max(0, 24 - dbLevCap8*3) giữ nguyên từng toán hạng nên mọi điểm GIỐNG TỪNG BIT theo cấu trúc. Lab (hidden_files/run_20261127_0709_D/lab/, hàm trích verbatim + harness, 2 lần bench độc lập): parity điểm 1.520.000/1.520.000 + pipeline 296/296 + biên 110/110 GIỐNG TỪNG BIT; tốc độ pipeline đầy đủ (40 truy vấn × 5.000 tên thật) paired-median xen kẽ 15 vòng — lần 1 1,2171x (thắng 15/15), lần 2 1,2255x (thắng 14/15), control old/old 1,0030x. Không chạm solver/WASM/FIR/QA logic; aeV3 không đổi theo cấu trúc (không đo lại; gần nhất 468/482 ms ngày 2026-11-11). QA trình duyệt đầy đủ chưa chạy được trên VM (headless Chrome bị chặn Hatch WebGL). Lượt kế: nhóm A. --- */
+    var _qe2 = _dbScoreQCache.get(q);
+    var _Qv2 = _qe2 ? _qe2.Q : dbNormStr(q);
+    var _qc2 = _qe2 ? _qe2.qc : _Qv2.replace(/ /g, "");
+    var _qclen2 = _qc2.length;
     var scored = [];
     for (var _di2 = 0; _di2 < _n; _di2++){
       if (!(_di2 in _base)) continue;
       if (_base[_di2] + 24 < _thresh) continue;
       var _dp2 = DB_PHONES[_di2];
-      var _ds2 = dbScore(q, _dp2.name);
+      var _ds2 = _base[_di2];
+      if (_Qv2){
+        var _ce2 = _dbScoreCache.get(String(_dp2.name || ""));
+        var _nc2 = _ce2 ? _ce2.nc : dbNormStr(_dp2.name).replace(/ /g, "");
+        if (Math.abs(_qclen2 - _nc2.length) < 8) _ds2 += Math.max(0, 24 - dbLevCap8(_qc2, _nc2) * 3);
+      }
       if (_ds2 > 10) scored.push({ p: _dp2, s: _ds2 });
     }
     scored.sort(function(a, b){ return b.s - a.s; });
