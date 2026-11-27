@@ -305,10 +305,23 @@ function dbExtWriteStore(list){
   } catch (e){ return false; }
 }
 /* (vòng tự động 23:24, hướng D — ÁP DỤNG, vá code, bản đa file): dbExtAddEntries trước đây giải mã e.v HAI lần cho mỗi mục nhập (dbValidateEntry tự decode, rồi dbExtEntryToPhone lại decode) — mỗi pack/GitHub import tốn 121 lần parseInt thừa/mục. Nay dbExtAddEntries giải mã MỘT lần (cùng biểu thức kiểm tra như dbValidateEntry/dbBuildPhones: thiếu trường -> "thiếu trường dữ liệu", ngược lại decode rồi dbValidateVals) rồi dùng chung vals cho cả kiểm tra lẫn dựng phone qua dbExtEntryToPhoneVals (cùng object literal, cùng biểu thức knots từng toán hạng); dbExtEntryToPhone giữ nguyên chữ ký/hành vi bằng cách ủy quyền với dbDecodeV(e.v). Đối xứng với vá giải mã-một-lần ở dbBuildPhones (07:01 ngày 24/11). Lab (hidden_files/run_20261125_2324_D/lab2/, hàm trích verbatim + harness, 5 lần bench độc lập): parity 22/22 GIỐNG TỪNG BIT mọi lần (biên null/thiếu trường/v không phải chuỗi/chuỗi ngắn/lệch lưới/dải động/dup không phân biệt hoa thường/fuzz 500 mục + register:true); bench paired-median xen kẽ 21 vòng x 5 lượt gộp trên import 2.000 mục — 2 lần đo sạch cuối 1,1886x (thắng 14/21) và 1,1365x (thắng 13/21); 5 lần đo gộp median ratio 1,10–1,27x. Không chạm solver/WASM/FIR/QA logic; aeV3 không đổi theo cấu trúc (không đo lại; gần nhất 468/482 ms ngày 2026-11-11). QA trình duyệt đầy đủ chưa chạy được trên VM (headless Chrome bị chặn Hatch WebGL). Lượt kế: nhóm A. --- */
+/* (vòng tự động 15:00 nhóm D — ÁP DỤNG, vá code, bản đa file): dựng knots bằng vòng for + tần số lưới đã làm tròn tính MỘT lần (_dbGridRounded) thay cho DB_GRID.map(...) — trước đây mỗi mục (5.000 mục lúc khởi động + mỗi mục pack/GitHub import) tốn 121 closure map + 121 lần Math.round(f*10)/10 dù DB_GRID không bao giờ thay đổi sau khi dựng. Nay tần số làm tròn chụp vào biến cục bộ đầu hàm rồi vòng for gán [rg[i], vals[i]] theo đúng độ dài DB_GRID như map gốc nên knots GIỐNG TỪNG BIT (kể cả vals ngắn/dài hơn lưới, mảng thưa, NaN/-0). Khác hướng đã bác: knot-freq tiền tính giữ map (07:26 ngày 24/11, 0,9637x không ổn định) — lượt này bỏ cả closure map lẫn Math.round lặp lại. Lab (hidden_files/run_20261127_1500_D/lab/, hàm trích verbatim + harness vm, 2 lần bench độc lập): parity 5005/5005 + full-build acc IDENTICAL trên 5.000 mục DB_RAW thật; full-build (decode+validate+knots) paired-median xen kẽ 15 vòng 1,1455x (thắng 15/15), knots-only 1,2195x (15/15); plain-Node cross-check 1,25-1,29x. Không chạm solver/WASM/FIR/QA logic; aeV3 không đổi theo cấu trúc (không đo lại; gần nhất 468/482 ms ngày 2026-11-11). QA trình duyệt đầy đủ chưa chạy được trên VM (headless Chrome bị chặn Hatch WebGL). Lượt kế: nhóm A. --- */
+var _dbGridRounded = null;
+function dbMakeKnots(vals){
+  var rg = _dbGridRounded;
+  if (!rg){
+    rg = new Array(DB_GRID.length);
+    for (var _gi = 0; _gi < DB_GRID.length; _gi++) rg[_gi] = Math.round(DB_GRID[_gi] * 10) / 10;
+    _dbGridRounded = rg;
+  }
+  var out = new Array(DB_GRID.length);
+  for (var i = 0; i < DB_GRID.length; i++) out[i] = [rg[i], vals[i]];
+  return out;
+}
 function dbExtEntryToPhoneVals(e, vals){
   return { name: e.n, brand: e.b || "", type: e.t || "", rig: e.r || "other", rigLabel: e.rl || "Rig khác / chưa xác định",
     source: "AutoEq · " + e.s, srcKey: e.s,
-    knots: DB_GRID.map(function(f, i){ return [Math.round(f*10)/10, vals[i]]; }),
+    knots: dbMakeKnots(vals),
     attribution: dbAttribution(e) };
 }
 function dbExtEntryToPhone(e){
@@ -654,7 +667,7 @@ var DB_RUNTIME_REJECTED = [];
     seen[key] = 1;
     DB_PHONES.push({ name: e.n, brand: e.b, type: e.t, rig: e.r, rigLabel: e.rl,
       source: (e.src === "Squiglink" ? "Squiglink · " : "AutoEq · ") + e.s, srcKey: e.s,
-      knots: DB_GRID.map(function(f, i){ return [Math.round(f * 10) / 10, vals[i]]; }),
+      knots: dbMakeKnots(vals),
       attribution: dbAttribution(e) });
   });
 })();
