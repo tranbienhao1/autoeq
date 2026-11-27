@@ -368,6 +368,8 @@ function dbExtPointWhy(pt, i){
   if (!isFinite(v)) return "Pack points: điểm " + i + " dB vô hạn (" + v + ").";
   return "";
 }
+/* --- vòng tự động 08:34 nhóm D (bản đa file): quét hai con trỏ + cache log trong dbExtNormalizePoints — ÁP DỤNG, vá code. Trước đây dbExtNormalizePoints gọi aeInterp 122 lần mỗi mục pack (1 lần cho at1k + 121 điểm DB_GRID), mỗi lần chạy tìm kiếm nhị phân + 3 lần Math.log (log(f), log(pts[lo][0]), log(pts[hi][0])) dù DB_GRID tăng dần và pts đã sắp xếp. Nay: (1) log tần số lưới tính MỘT lần vào _dbGridLog (DB_GRID không bao giờ bị sửa sau khi dựng — đã kiểm chứng grep toàn bộ js/; Math.log thuần xác định nên giá trị cache GIỐNG TỪNG BIT với Math.log(f) trong aeInterp); (2) log tần số pts tính lười theo bracket thực dùng qua lg() (mảng logPts toàn lỗ, chỉ điền khi bracket chạm tới — tần số đã qua kiểm chứng > 0 nên log không bao giờ undefined, kiểm tra === undefined an toàn); (3) quét DB_GRID bằng hai con trỏ: con trỏ _p chỉ tiến vì DB_GRID tăng dần, bracket (lo=_p, hi=_p+1) trùng đúng bracket tìm kiếm nhị phân của aeInterp (lo = chỉ số lớn nhất có tần số <= f, kể cả trùng tần số; hai nhánh clamp giữ nguyên điều kiện và giá trị như aeInterp); biểu thức nội suy giữ nguyên từng toán hạng/thứ tự phép tính nên mọi giá trị GIỐNG TỪNG BIT theo cấu trúc (kể cả NaN khi bracket trùng tần số: 0/0 như cũ). at1k tính bằng đúng tìm kiếm nhị phân + biểu thức của aeInterp với log cache. Khác hướng đã bác: hoist num trong dbParseMeasurement (0,94–0,98×), knot-freq tiền tính trong dbBuildPhones (full-build không cải thiện) — lượt này không đụng các hàm đó, chỉ đổi cách nội suy trong dbExtNormalizePoints. Lab (hidden_files/run_20261127_0834_D/lab/, hàm trích verbatim bằng extract.py + harness vm, 3 lần chạy độc lập với bản lười-log): parity 380/380 GIỐNG TỪNG BIT cả 3 lần (9 dạng pts × 40 rep gồm lưới 121 điểm, thưa, dày 1000 điểm, trùng tần số, clamp hai đầu, cực đoan ±1e308/±0/subnormal, 2 điểm, fuzz + 15 ca lỗi ném đúng thông điệp + 5 ca cache ấm); tốc độ paired-median xen kẽ 15 vòng — lần 1 W1 1,3042× (15/15), W2 1,0343× (11/15, sort 1000 điểm chiếm ưu thế), W3 2,0239× (15/15), W4 1,6143× (15/15); lần 2 W1 1,3055× (15/15), W2 1,0353× (13/15), W3 2,0255× (15/15), W4 1,6067× (15/15). Không chạm solver/WASM/FIR/QA logic; aeV3 không đổi theo cấu trúc (không chạm solver; gần nhất 468/482 ms ngày 2026-11-11). QA trình duyệt đầy đủ chưa chạy được trên VM (headless Chrome bị chặn Hatch WebGL). Lượt kế: nhóm A. --- */
+var _dbGridLog = null;
 function dbExtNormalizePoints(points){
   /* Pha C 2026-11-07 (guard pack): moi diem phai la cap [tan so, dB] bang so
      huu han, tan so > 0 — JSON null/chuoi/Infinity (1e999) truoc day bi
@@ -380,8 +382,33 @@ function dbExtNormalizePoints(points){
     if (why) throw new Error(why);
   });
   var pts = points.slice().sort(function(a, b){ return a[0] - b[0]; });
-  var at1k = aeInterp(pts, 1000);
-  return DB_GRID.map(function(f){ return aeInterp(pts, f) - at1k; });
+  if (!_dbGridLog){ _dbGridLog = []; for (var _gl = 0; _gl < DB_GRID.length; _gl++) _dbGridLog.push(Math.log(DB_GRID[_gl])); }
+  var logPts = new Array(pts.length);
+  function lg(i){ var v = logPts[i]; if (v === undefined){ v = Math.log(pts[i][0]); logPts[i] = v; } return v; }
+  var at1k;
+  if (1000 <= pts[0][0]) at1k = pts[0][1];
+  else if (1000 >= pts[pts.length - 1][0]) at1k = pts[pts.length - 1][1];
+  else {
+    var _lo = 0, _hi = pts.length - 1;
+    while (_hi - _lo > 1){ var _m = (_lo + _hi) >> 1; if (pts[_m][0] <= 1000) _lo = _m; else _hi = _m; }
+    var _t1 = (Math.log(1000) - lg(_lo)) / (lg(_hi) - lg(_lo));
+    at1k = pts[_lo][1] + _t1 * (pts[_hi][1] - pts[_lo][1]);
+  }
+  var out = new Array(DB_GRID.length);
+  var _p = 0;
+  for (var _gi = 0; _gi < DB_GRID.length; _gi++){
+    var _f = DB_GRID[_gi];
+    var _v;
+    if (_f <= pts[0][0]) _v = pts[0][1];
+    else if (_f >= pts[pts.length - 1][0]) _v = pts[pts.length - 1][1];
+    else {
+      while (_p + 1 < pts.length && pts[_p + 1][0] <= _f) _p++;
+      var _t = (_dbGridLog[_gi] - lg(_p)) / (lg(_p + 1) - lg(_p));
+      _v = pts[_p][1] + _t * (pts[_p + 1][1] - pts[_p][1]);
+    }
+    out[_gi] = _v - at1k;
+  }
+  return out;
 }
 function dbExtParseCsv(text){
   /* Pha C 2026-11-07: nhan dien delimiter theo tung dong giong dbParseMeasurement
