@@ -1369,7 +1369,10 @@ function aeSolve(freqs, errDb, weights, nBands, anchorShelf, fs, seedBands){
        tệ đi. RMS tính nội tuyến (không gọi aeRms) để AE_WORKER_SRC
        không cần thêm hàm mà parity Worker vẫn giữ nguyên. --- */
   function aeRmsLocal(total){ var s=0, c=0; for (var i=0;i<freqs.length;i++){ if (freqs[i]<=10000){ var e=errDb[i]-total[i]; s+=e*e; c++; } } return c? Math.sqrt(s/c) : 0; }
-  var curRms = aeRmsLocal(pick.total);
+  /* (vòng tự động 14:31, hướng A): cache RMS của pick trong aeSolve theo identity mảng pick.total — trước đây mỗi bước tiếp tục (c5..c15, c10..c10x, anchored/dual/rcDual/t1*) đều tính lại aeRmsLocal(pick.total) tại 68 điểm gọi dù pick thường không đổi giữa các bước; nay pickRms() tính MỘT lần cho mỗi mảng total và trả lại giá trị đã tính khi pick.total còn là cùng mảng (aeRmsLocal xác định trên errDb/freqs cố định trong một lần aeSolve, pick.total không bị đột biến tại chỗ trong aeSolve) nên mọi quyết định chấp nhận/từ chối và kết quả cuối GIỐNG TỪNG BIT; khi pick đổi sang mảng total khác, pickRms() tính lại đúng đường gốc. Không tham chiếu biến ngoài mới (chỉ dùng aeRmsLocal/pick đã có trong AE_WORKER_SRC) nên parity Worker giữ nguyên. */
+  var _pickRmsCache = null, _pickRmsFor = {};
+  function pickRms(){ if (_pickRmsFor === pick.total) return _pickRmsCache; _pickRmsCache = aeRmsLocal(pick.total); _pickRmsFor = pick.total; return _pickRmsCache; }
+  var curRms = pickRms();
   if (!ssSkip(4)){
     var c5 = aeSolveSingle(freqs, errDb, weights, nBands, pickLam, 4, rc, pickShelf, pick.bands, anchorShelf, undefined, fsv);
     ms += c5.ms;
@@ -1396,7 +1399,7 @@ function aeSolve(freqs, errDb, weights, nBands, anchorShelf, fs, seedBands){
     var c6 = aeSolveSingle(freqs, errDb, weights, nBands, pickLam, c6Passes, rc, pickShelf, pick.bands, anchorShelf, undefined, fsv);
     ms += c6.ms;
     var o6 = aeSolveObjective(c6.bands, c6.total, errDb, weights, rc);
-    if (o6 < pickObj && aeRmsLocal(c6.total) <= aeRmsLocal(pick.total)){ pick = c6; pickObj = o6; }
+    if (o6 < pickObj && aeRmsLocal(c6.total) <= pickRms()){ pick = c6; pickObj = o6; }
     ssNote(c6, c6Passes, pick === c6);
   }
   /* --- Mở rộng 2026-10-31 (vòng tự động 10:44, áp lại ở vòng 12:24 sau
@@ -1417,7 +1420,7 @@ function aeSolve(freqs, errDb, weights, nBands, anchorShelf, fs, seedBands){
     var c7 = aeSolveSingle(freqs, errDb, weights, nBands, pickLam, 16, rc, pickShelf, pick.bands, anchorShelf, undefined, fsv);
     ms += c7.ms;
     var o7 = aeSolveObjective(c7.bands, c7.total, errDb, weights, rc);
-    if (o7 < pickObj && aeRmsLocal(c7.total) <= aeRmsLocal(pick.total)){ pick = c7; pickObj = o7; }
+    if (o7 < pickObj && aeRmsLocal(c7.total) <= pickRms()){ pick = c7; pickObj = o7; }
     ssNote(c7, 16, pick === c7);
   }
   /* --- Mở rộng 2026-10-31 (vòng tự động 12:44): thí nghiệm exp23 trên
@@ -1439,7 +1442,7 @@ function aeSolve(freqs, errDb, weights, nBands, anchorShelf, fs, seedBands){
     var c8 = aeSolveSingle(freqs, errDb, weights, nBands, pickLam, 16, rc, pickShelf, pick.bands, anchorShelf, undefined, fsv);
     ms += c8.ms;
     var o8 = aeSolveObjective(c8.bands, c8.total, errDb, weights, rc);
-    if (o8 < pickObj && aeRmsLocal(c8.total) <= aeRmsLocal(pick.total)){ pick = c8; pickObj = o8; }
+    if (o8 < pickObj && aeRmsLocal(c8.total) <= pickRms()){ pick = c8; pickObj = o8; }
     ssNote(c8, 16, pick === c8);
   }
   /* --- Mở rộng 2026-10-31 (vòng tự động 13:04): thí nghiệm exp24 trên
@@ -1464,29 +1467,29 @@ function aeSolve(freqs, errDb, weights, nBands, anchorShelf, fs, seedBands){
        tối đa ~380 ms khi phải chạy dự phòng, đường 20 band không có
        cổng thời gian. --- */
   if (nBands > 10){
-    var c9Before = pick, c9BeforeRms = aeRmsLocal(pick.total);
+    var c9Before = pick, c9BeforeRms = pickRms();
     if (!ssSkip(16)){
       var c9a = aeSolveSingle(freqs, errDb, weights, nBands, pickLam, 16, rc, pickShelf, pick.bands, anchorShelf, undefined, fsv);
       ms += c9a.ms;
       var o9a = aeSolveObjective(c9a.bands, c9a.total, errDb, weights, rc);
-      if (o9a < pickObj && aeRmsLocal(c9a.total) <= aeRmsLocal(pick.total)){
+      if (o9a < pickObj && aeRmsLocal(c9a.total) <= pickRms()){
         pick = c9a; pickObj = o9a;
         ssNote(c9a, 16, true);
         if (!ssSkip(16)){
           var c9b = aeSolveSingle(freqs, errDb, weights, nBands, pickLam, 16, rc, pickShelf, pick.bands, anchorShelf, undefined, fsv);
           ms += c9b.ms;
           var o9b = aeSolveObjective(c9b.bands, c9b.total, errDb, weights, rc);
-          if (o9b < pickObj && aeRmsLocal(c9b.total) <= aeRmsLocal(pick.total)){ pick = c9b; pickObj = o9b; }
+          if (o9b < pickObj && aeRmsLocal(c9b.total) <= pickRms()){ pick = c9b; pickObj = o9b; }
           ssNote(c9b, 16, pick === c9b);
         }
       } else { ssNote(c9a, 16, false); }
     }
-    var c9AfterRms = aeRmsLocal(pick.total);
+    var c9AfterRms = pickRms();
     if (c9BeforeRms > 0 && (c9BeforeRms - c9AfterRms) / c9BeforeRms < 0.01){
       var c9c = aeSolveSingle(freqs, errDb, weights, nBands, pickLam, 32, rc, pickShelf, c9Before.bands, anchorShelf, undefined, fsv);
       ms += c9c.ms;
       var o9c = aeSolveObjective(c9c.bands, c9c.total, errDb, weights, rc);
-      if (o9c < pickObj && aeRmsLocal(c9c.total) <= aeRmsLocal(pick.total) && aeRmsLocal(c9c.total) < c9AfterRms){ pick = c9c; pickObj = o9c; }
+      if (o9c < pickObj && aeRmsLocal(c9c.total) <= pickRms() && aeRmsLocal(c9c.total) < c9AfterRms){ pick = c9c; pickObj = o9c; }
       ssNote(c9c, 32, pick === c9c);
     }
   }
@@ -1511,23 +1514,23 @@ function aeSolve(freqs, errDb, weights, nBands, anchorShelf, fs, seedBands){
        ~370-570 ms cho chuỗi, tối đa ~580 ms nữa khi phải chạy dự
        phòng, đường 20 band không có cổng thời gian. --- */
   if (nBands > 10){
-    var c10Before = pick, c10BeforeRms = aeRmsLocal(pick.total);
+    var c10Before = pick, c10BeforeRms = pickRms();
     var c10Steps = [16, 16, 16];
     for (var c10i = 0; c10i < c10Steps.length; c10i++){
       if (!ssSkip(16)){
         var c10s = aeSolveSingle(freqs, errDb, weights, nBands, pickLam, c10Steps[c10i], rc, pickShelf, pick.bands, anchorShelf, undefined, fsv);
         ms += c10s.ms;
         var o10s = aeSolveObjective(c10s.bands, c10s.total, errDb, weights, rc);
-        if (o10s < pickObj && aeRmsLocal(c10s.total) <= aeRmsLocal(pick.total)){ pick = c10s; pickObj = o10s; }
+        if (o10s < pickObj && aeRmsLocal(c10s.total) <= pickRms()){ pick = c10s; pickObj = o10s; }
         ssNote(c10s, 16, pick === c10s);
       }
     }
-    var c10AfterRms = aeRmsLocal(pick.total);
+    var c10AfterRms = pickRms();
     if (c10BeforeRms > 0 && (c10BeforeRms - c10AfterRms) / c10BeforeRms < 0.01){
       var c10f = aeSolveSingle(freqs, errDb, weights, nBands, pickLam, 48, rc, pickShelf, c10Before.bands, anchorShelf, undefined, fsv);
       ms += c10f.ms;
       var o10f = aeSolveObjective(c10f.bands, c10f.total, errDb, weights, rc);
-      if (o10f < pickObj && aeRmsLocal(c10f.total) <= aeRmsLocal(pick.total) && aeRmsLocal(c10f.total) < c10AfterRms){ pick = c10f; pickObj = o10f; }
+      if (o10f < pickObj && aeRmsLocal(c10f.total) <= pickRms() && aeRmsLocal(c10f.total) < c10AfterRms){ pick = c10f; pickObj = o10f; }
       ssNote(c10f, 48, pick === c10f);
     }
   }
@@ -1551,23 +1554,23 @@ function aeSolve(freqs, errDb, weights, nBands, anchorShelf, fs, seedBands){
        tệ đi. Chi phí thêm: ~480-750 ms cho chuỗi, tối đa ~750 ms nữa
        khi phải chạy dự phòng, đường 20 band không có cổng thời gian. --- */
   if (nBands > 10){
-    var c11Before = pick, c11BeforeRms = aeRmsLocal(pick.total);
+    var c11Before = pick, c11BeforeRms = pickRms();
     var c11Steps = [16, 16, 16, 16];
     for (var c11i = 0; c11i < c11Steps.length; c11i++){
       if (!ssSkip(16)){
         var c11s = aeSolveSingle(freqs, errDb, weights, nBands, pickLam, c11Steps[c11i], rc, pickShelf, pick.bands, anchorShelf, undefined, fsv);
         ms += c11s.ms;
         var o11s = aeSolveObjective(c11s.bands, c11s.total, errDb, weights, rc);
-        if (o11s < pickObj && aeRmsLocal(c11s.total) <= aeRmsLocal(pick.total)){ pick = c11s; pickObj = o11s; }
+        if (o11s < pickObj && aeRmsLocal(c11s.total) <= pickRms()){ pick = c11s; pickObj = o11s; }
         ssNote(c11s, 16, pick === c11s);
       }
     }
-    var c11AfterRms = aeRmsLocal(pick.total);
+    var c11AfterRms = pickRms();
     if (c11BeforeRms > 0 && (c11BeforeRms - c11AfterRms) / c11BeforeRms < 0.01){
       var c11f = aeSolveSingle(freqs, errDb, weights, nBands, pickLam, 64, rc, pickShelf, c11Before.bands, anchorShelf, undefined, fsv);
       ms += c11f.ms;
       var o11f = aeSolveObjective(c11f.bands, c11f.total, errDb, weights, rc);
-      if (o11f < pickObj && aeRmsLocal(c11f.total) <= aeRmsLocal(pick.total) && aeRmsLocal(c11f.total) < c11AfterRms){ pick = c11f; pickObj = o11f; }
+      if (o11f < pickObj && aeRmsLocal(c11f.total) <= pickRms() && aeRmsLocal(c11f.total) < c11AfterRms){ pick = c11f; pickObj = o11f; }
       ssNote(c11f, 64, pick === c11f);
     }
   }
@@ -1592,23 +1595,23 @@ function aeSolve(freqs, errDb, weights, nBands, anchorShelf, fs, seedBands){
        tệ đi. Chi phí thêm: ~600-930 ms cho chuỗi, tối đa ~930 ms nữa
        khi phải chạy dự phòng, đường 20 band không có cổng thời gian. --- */
   if (nBands > 10){
-    var c12Before = pick, c12BeforeRms = aeRmsLocal(pick.total);
+    var c12Before = pick, c12BeforeRms = pickRms();
     var c12Steps = [16, 16, 16, 16, 16];
     for (var c12i = 0; c12i < c12Steps.length; c12i++){
       if (!ssSkip(16)){
         var c12s = aeSolveSingle(freqs, errDb, weights, nBands, pickLam, c12Steps[c12i], rc, pickShelf, pick.bands, anchorShelf, undefined, fsv);
         ms += c12s.ms;
         var o12s = aeSolveObjective(c12s.bands, c12s.total, errDb, weights, rc);
-        if (o12s < pickObj && aeRmsLocal(c12s.total) <= aeRmsLocal(pick.total)){ pick = c12s; pickObj = o12s; }
+        if (o12s < pickObj && aeRmsLocal(c12s.total) <= pickRms()){ pick = c12s; pickObj = o12s; }
         ssNote(c12s, 16, pick === c12s);
       }
     }
-    var c12AfterRms = aeRmsLocal(pick.total);
+    var c12AfterRms = pickRms();
     if (c12BeforeRms > 0 && (c12BeforeRms - c12AfterRms) / c12BeforeRms < 0.01){
       var c12f = aeSolveSingle(freqs, errDb, weights, nBands, pickLam, 80, rc, pickShelf, c12Before.bands, anchorShelf, undefined, fsv);
       ms += c12f.ms;
       var o12f = aeSolveObjective(c12f.bands, c12f.total, errDb, weights, rc);
-      if (o12f < pickObj && aeRmsLocal(c12f.total) <= aeRmsLocal(pick.total) && aeRmsLocal(c12f.total) < c12AfterRms){ pick = c12f; pickObj = o12f; }
+      if (o12f < pickObj && aeRmsLocal(c12f.total) <= pickRms() && aeRmsLocal(c12f.total) < c12AfterRms){ pick = c12f; pickObj = o12f; }
       ssNote(c12f, 80, pick === c12f);
     }
   }
@@ -1632,23 +1635,23 @@ function aeSolve(freqs, errDb, weights, nBands, anchorShelf, fs, seedBands){
        Chi phí thêm: ~570-880 ms cho chuỗi, tối đa ~900 ms nữa khi
        phải chạy dự phòng, đường 20 band không có cổng thời gian. --- */
   if (nBands > 10){
-    var c13Before = pick, c13BeforeRms = aeRmsLocal(pick.total);
+    var c13Before = pick, c13BeforeRms = pickRms();
     var c13Steps = [16, 16, 16, 16, 16, 16];
     for (var c13i = 0; c13i < c13Steps.length; c13i++){
       if (!ssSkip(16)){
         var c13s = aeSolveSingle(freqs, errDb, weights, nBands, pickLam, c13Steps[c13i], rc, pickShelf, pick.bands, anchorShelf, undefined, fsv);
         ms += c13s.ms;
         var o13s = aeSolveObjective(c13s.bands, c13s.total, errDb, weights, rc);
-        if (o13s < pickObj && aeRmsLocal(c13s.total) <= aeRmsLocal(pick.total)){ pick = c13s; pickObj = o13s; }
+        if (o13s < pickObj && aeRmsLocal(c13s.total) <= pickRms()){ pick = c13s; pickObj = o13s; }
         ssNote(c13s, 16, pick === c13s);
       }
     }
-    var c13AfterRms = aeRmsLocal(pick.total);
+    var c13AfterRms = pickRms();
     if (c13BeforeRms > 0 && (c13BeforeRms - c13AfterRms) / c13BeforeRms < 0.01){
       var c13f = aeSolveSingle(freqs, errDb, weights, nBands, pickLam, 96, rc, pickShelf, c13Before.bands, anchorShelf, undefined, fsv);
       ms += c13f.ms;
       var o13f = aeSolveObjective(c13f.bands, c13f.total, errDb, weights, rc);
-      if (o13f < pickObj && aeRmsLocal(c13f.total) <= aeRmsLocal(pick.total) && aeRmsLocal(c13f.total) < c13AfterRms){ pick = c13f; pickObj = o13f; }
+      if (o13f < pickObj && aeRmsLocal(c13f.total) <= pickRms() && aeRmsLocal(c13f.total) < c13AfterRms){ pick = c13f; pickObj = o13f; }
       ssNote(c13f, 96, pick === c13f);
     }
   }
@@ -1686,11 +1689,11 @@ function aeSolve(freqs, errDb, weights, nBands, anchorShelf, fs, seedBands){
         var c14s = aeSolveSingle(freqs, errDb, weights, nBands, pickLam, c14Steps[c14i], rc, pickShelf, pick.bands, anchorShelf, undefined, fsv);
         ms += c14s.ms;
         var o14s = aeSolveObjective(c14s.bands, c14s.total, errDb, weights, rc);
-        if (o14s < pickObj && aeRmsLocal(c14s.total) <= aeRmsLocal(pick.total)){ pick = c14s; pickObj = o14s; c14Accepted++; }
+        if (o14s < pickObj && aeRmsLocal(c14s.total) <= pickRms()){ pick = c14s; pickObj = o14s; c14Accepted++; }
         ssNote(c14s, 16, pick === c14s);
       }
     }
-    var c14AfterRms = aeRmsLocal(pick.total);
+    var c14AfterRms = pickRms();
     if (c14Accepted > 0 && !ssSkip(112)){
       var c14f = aeSolveSingle(freqs, errDb, weights, nBands, pickLam, 112, rc, pickShelf, pick.bands, anchorShelf, undefined, fsv);
       ms += c14f.ms;
@@ -1723,7 +1726,7 @@ function aeSolve(freqs, errDb, weights, nBands, anchorShelf, fs, seedBands){
         var c15s = aeSolveSingle(freqs, errDb, weights, nBands, pickLam, c15Steps[c15i], rc, pickShelf, pick.bands, anchorShelf, undefined, fsv);
         ms += c15s.ms;
         var o15s = aeSolveObjective(c15s.bands, c15s.total, errDb, weights, rc);
-        if (o15s < pickObj && aeRmsLocal(c15s.total) <= aeRmsLocal(pick.total)){ pick = c15s; pickObj = o15s; }
+        if (o15s < pickObj && aeRmsLocal(c15s.total) <= pickRms()){ pick = c15s; pickObj = o15s; }
         ssNote(c15s, 16, pick === c15s);
       }
     }
@@ -1752,7 +1755,7 @@ function aeSolve(freqs, errDb, weights, nBands, anchorShelf, fs, seedBands){
     var c10 = aeSolveSingle(freqs, errDb, weights, nBands, pickLam, 8, rc, pickShelf, pick.bands, anchorShelf, undefined, fsv);
     ms += c10.ms;
     var o10 = aeSolveObjective(c10.bands, c10.total, errDb, weights, rc);
-    if (o10 < pickObj && aeRmsLocal(c10.total) <= aeRmsLocal(pick.total)){ pick = c10; pickObj = o10; }
+    if (o10 < pickObj && aeRmsLocal(c10.total) <= pickRms()){ pick = c10; pickObj = o10; }
     ssNote(c10, 8, pick === c10);
   }
   /* --- Mở rộng 2026-10-31 (vòng tự động 16:04): thí nghiệm exp33 trên
@@ -1774,7 +1777,7 @@ function aeSolve(freqs, errDb, weights, nBands, anchorShelf, fs, seedBands){
     var c10b = aeSolveSingle(freqs, errDb, weights, nBands, pickLam, 8, rc, pickShelf, pick.bands, anchorShelf, undefined, fsv);
     ms += c10b.ms;
     var o10b = aeSolveObjective(c10b.bands, c10b.total, errDb, weights, rc);
-    if (o10b < pickObj && aeRmsLocal(c10b.total) <= aeRmsLocal(pick.total)){ pick = c10b; pickObj = o10b; }
+    if (o10b < pickObj && aeRmsLocal(c10b.total) <= pickRms()){ pick = c10b; pickObj = o10b; }
     ssNote(c10b, 8, pick === c10b);
   }
   /* --- Mở rộng 2026-10-31 (vòng tự động 18:04): thử lại ứng viên
@@ -1799,7 +1802,7 @@ function aeSolve(freqs, errDb, weights, nBands, anchorShelf, fs, seedBands){
     var c10d = aeSolveSingle(freqs, errDb, weights, nBands, pickLam, 4, rc, pickShelf, pick.bands, anchorShelf, undefined, fsv);
     ms += c10d.ms;
     var o10d = aeSolveObjective(c10d.bands, c10d.total, errDb, weights, rc);
-    if (o10d < pickObj && aeRmsLocal(c10d.total) <= aeRmsLocal(pick.total)){ pick = c10d; pickObj = o10d; }
+    if (o10d < pickObj && aeRmsLocal(c10d.total) <= pickRms()){ pick = c10d; pickObj = o10d; }
     ssNote(c10d, 4, pick === c10d);
   }
   /* --- Mở rộng 2026-10-31 (vòng tự động 18:44): lượt tiếp tục chặt
@@ -1821,7 +1824,7 @@ function aeSolve(freqs, errDb, weights, nBands, anchorShelf, fs, seedBands){
     var c10e = aeSolveSingle(freqs, errDb, weights, nBands, pickLam, 4, rc, pickShelf, pick.bands, anchorShelf, undefined, fsv);
     ms += c10e.ms;
     var o10e = aeSolveObjective(c10e.bands, c10e.total, errDb, weights, rc);
-    if (o10e < pickObj && aeRmsLocal(c10e.total) <= aeRmsLocal(pick.total)){ pick = c10e; pickObj = o10e; }
+    if (o10e < pickObj && aeRmsLocal(c10e.total) <= pickRms()){ pick = c10e; pickObj = o10e; }
     ssNote(c10e, 4, pick === c10e);
   }
   /* --- Mở rộng 2026-10-31 (vòng tự động 19:04): lượt tiếp tục chặt
@@ -1843,7 +1846,7 @@ function aeSolve(freqs, errDb, weights, nBands, anchorShelf, fs, seedBands){
     var c10f = aeSolveSingle(freqs, errDb, weights, nBands, pickLam, 4, rc, pickShelf, pick.bands, anchorShelf, undefined, fsv);
     ms += c10f.ms;
     var o10f = aeSolveObjective(c10f.bands, c10f.total, errDb, weights, rc);
-    if (o10f < pickObj && aeRmsLocal(c10f.total) <= aeRmsLocal(pick.total)){ pick = c10f; pickObj = o10f; }
+    if (o10f < pickObj && aeRmsLocal(c10f.total) <= pickRms()){ pick = c10f; pickObj = o10f; }
     ssNote(c10f, 4, pick === c10f);
   }
   /* --- Mo rong 2026-11-01 (vong tu dong 02:44): luot tiep tuc chat
@@ -1864,7 +1867,7 @@ function aeSolve(freqs, errDb, weights, nBands, anchorShelf, fs, seedBands){
     var c10g = aeSolveSingle(freqs, errDb, weights, nBands, pickLam, 4, rc, pickShelf, pick.bands, anchorShelf, undefined, fsv);
     ms += c10g.ms;
     var o10g = aeSolveObjective(c10g.bands, c10g.total, errDb, weights, rc);
-    if (o10g < pickObj && aeRmsLocal(c10g.total) <= aeRmsLocal(pick.total)){ pick = c10g; pickObj = o10g; }
+    if (o10g < pickObj && aeRmsLocal(c10g.total) <= pickRms()){ pick = c10g; pickObj = o10g; }
     ssNote(c10g, 4, pick === c10g);
   }
   /* --- Mo rong 2026-11-01 (vong tu dong, cho vong sau): luot tiep tuc chat
@@ -1881,7 +1884,7 @@ function aeSolve(freqs, errDb, weights, nBands, anchorShelf, fs, seedBands){
     var c10h = aeSolveSingle(freqs, errDb, weights, nBands, pickLam, 4, rc, pickShelf, pick.bands, anchorShelf, undefined, fsv);
     ms += c10h.ms;
     var o10h = aeSolveObjective(c10h.bands, c10h.total, errDb, weights, rc);
-    if (o10h < pickObj && aeRmsLocal(c10h.total) <= aeRmsLocal(pick.total)){ pick = c10h; pickObj = o10h; }
+    if (o10h < pickObj && aeRmsLocal(c10h.total) <= pickRms()){ pick = c10h; pickObj = o10h; }
     ssNote(c10h, 4, pick === c10h);
   }
   /* --- Mo rong 2026-11-01 (vong tu dong 17:44): luot tiep tuc chat
@@ -1897,7 +1900,7 @@ function aeSolve(freqs, errDb, weights, nBands, anchorShelf, fs, seedBands){
     var c10i = aeSolveSingle(freqs, errDb, weights, nBands, pickLam, 4, rc, pickShelf, pick.bands, anchorShelf, undefined, fsv);
     ms += c10i.ms;
     var o10i = aeSolveObjective(c10i.bands, c10i.total, errDb, weights, rc);
-    if (o10i < pickObj && aeRmsLocal(c10i.total) <= aeRmsLocal(pick.total)){ pick = c10i; pickObj = o10i; }
+    if (o10i < pickObj && aeRmsLocal(c10i.total) <= pickRms()){ pick = c10i; pickObj = o10i; }
     ssNote(c10i, 4, pick === c10i);
   }
   /* --- Mo rong 2026-11-04 (vong tu dong 13:44): luot tiep tuc chat
@@ -1913,7 +1916,7 @@ function aeSolve(freqs, errDb, weights, nBands, anchorShelf, fs, seedBands){
     var c10j = aeSolveSingle(freqs, errDb, weights, nBands, pickLam, 4, rc, pickShelf, pick.bands, anchorShelf, undefined, fsv);
     ms += c10j.ms;
     var o10j = aeSolveObjective(c10j.bands, c10j.total, errDb, weights, rc);
-    if (o10j < pickObj && aeRmsLocal(c10j.total) <= aeRmsLocal(pick.total)){ pick = c10j; pickObj = o10j; }
+    if (o10j < pickObj && aeRmsLocal(c10j.total) <= pickRms()){ pick = c10j; pickObj = o10j; }
     ssNote(c10j, 4, pick === c10j);
   }
   /* --- Thi nghiem Pha A 2026-11-05 (vong 09:11): luot polish buoc nho c10p
@@ -1931,7 +1934,7 @@ function aeSolve(freqs, errDb, weights, nBands, anchorShelf, fs, seedBands){
     var c10p = aeSolveSingle(freqs, errDb, weights, nBands, pickLam, 4, rc, pickShelf, pick.bands, anchorShelf, 0.5, fsv);
     ms += c10p.ms;
     var o10p = aeSolveObjective(c10p.bands, c10p.total, errDb, weights, rc);
-    if (o10p < pickObj && aeRmsLocal(c10p.total) <= aeRmsLocal(pick.total)){ pick = c10p; pickObj = o10p; }
+    if (o10p < pickObj && aeRmsLocal(c10p.total) <= pickRms()){ pick = c10p; pickObj = o10p; }
   }
   /* --- Thi nghiem Pha A 2026-11-05 (vong 10:06): luot polish buoc nho hon c10q
        ngay sau c10p, chi duong <=10 band. Ly do: c10p (stepScale 0.5) van cai
@@ -1946,7 +1949,7 @@ function aeSolve(freqs, errDb, weights, nBands, anchorShelf, fs, seedBands){
     var c10q = aeSolveSingle(freqs, errDb, weights, nBands, pickLam, 4, rc, pickShelf, pick.bands, anchorShelf, 0.25, fsv);
     ms += c10q.ms;
     var o10q = aeSolveObjective(c10q.bands, c10q.total, errDb, weights, rc);
-    if (o10q < pickObj && aeRmsLocal(c10q.total) <= aeRmsLocal(pick.total)){ pick = c10q; pickObj = o10q; }
+    if (o10q < pickObj && aeRmsLocal(c10q.total) <= pickRms()){ pick = c10q; pickObj = o10q; }
   }
   /* --- Thi nghiem Pha A 2026-11-05 (vong 10:29): luot polish buoc nho hon nua c10r
        ngay sau c10q, chi duong <=10 band. Ly do: c10q (stepScale 0.25) van cai
@@ -1961,7 +1964,7 @@ function aeSolve(freqs, errDb, weights, nBands, anchorShelf, fs, seedBands){
     var c10r = aeSolveSingle(freqs, errDb, weights, nBands, pickLam, 4, rc, pickShelf, pick.bands, anchorShelf, 0.125, fsv);
     ms += c10r.ms;
     var o10r = aeSolveObjective(c10r.bands, c10r.total, errDb, weights, rc);
-    if (o10r < pickObj && aeRmsLocal(c10r.total) <= aeRmsLocal(pick.total)){ pick = c10r; pickObj = o10r; }
+    if (o10r < pickObj && aeRmsLocal(c10r.total) <= pickRms()){ pick = c10r; pickObj = o10r; }
   }
   /* --- Thi nghiem Pha A 2026-11-05 (vong 11:21): luot polish buoc nho hon nua c10s
        ngay sau c10r, chi duong <=10 band. Ly do: c10r (stepScale 0.125) van cai
@@ -1976,7 +1979,7 @@ function aeSolve(freqs, errDb, weights, nBands, anchorShelf, fs, seedBands){
     var c10s = aeSolveSingle(freqs, errDb, weights, nBands, pickLam, 4, rc, pickShelf, pick.bands, anchorShelf, 0.0625, fsv);
     ms += c10s.ms;
     var o10s = aeSolveObjective(c10s.bands, c10s.total, errDb, weights, rc);
-    if (o10s < pickObj && aeRmsLocal(c10s.total) <= aeRmsLocal(pick.total)){ pick = c10s; pickObj = o10s; }
+    if (o10s < pickObj && aeRmsLocal(c10s.total) <= pickRms()){ pick = c10s; pickObj = o10s; }
   }
   /* --- Thi nghiem Pha A 2026-11-05 (vong 11:47): luot polish buoc nho hon nua c10t
        ngay sau c10s, chi duong <=10 band. Ly do: c10s (stepScale 0.0625) van cai
@@ -1991,7 +1994,7 @@ function aeSolve(freqs, errDb, weights, nBands, anchorShelf, fs, seedBands){
     var c10t = aeSolveSingle(freqs, errDb, weights, nBands, pickLam, 4, rc, pickShelf, pick.bands, anchorShelf, 0.03125, fsv);
     ms += c10t.ms;
     var o10t = aeSolveObjective(c10t.bands, c10t.total, errDb, weights, rc);
-    if (o10t < pickObj && aeRmsLocal(c10t.total) <= aeRmsLocal(pick.total)){ pick = c10t; pickObj = o10t; }
+    if (o10t < pickObj && aeRmsLocal(c10t.total) <= pickRms()){ pick = c10t; pickObj = o10t; }
   }
   /* --- Thi nghiem Pha A 2026-11-05 (vong 12:04): luot polish buoc nho hon nua c10u
        ngay sau c10t, chi duong <=10 band. Ly do: c10t (stepScale 0.03125) van cai
@@ -2006,7 +2009,7 @@ function aeSolve(freqs, errDb, weights, nBands, anchorShelf, fs, seedBands){
     var c10u = aeSolveSingle(freqs, errDb, weights, nBands, pickLam, 4, rc, pickShelf, pick.bands, anchorShelf, 0.015625, fsv);
     ms += c10u.ms;
     var o10u = aeSolveObjective(c10u.bands, c10u.total, errDb, weights, rc);
-    if (o10u < pickObj && aeRmsLocal(c10u.total) <= aeRmsLocal(pick.total)){ pick = c10u; pickObj = o10u; }
+    if (o10u < pickObj && aeRmsLocal(c10u.total) <= pickRms()){ pick = c10u; pickObj = o10u; }
   }
   /* --- Thi nghiem Pha A 2026-11-05 (vong 13:27): luot polish buoc nho hon nua c10v
        ngay sau c10u, chi duong <=10 band. Ly do: c10u (stepScale 0.015625) van cai
@@ -2021,7 +2024,7 @@ function aeSolve(freqs, errDb, weights, nBands, anchorShelf, fs, seedBands){
     var c10v = aeSolveSingle(freqs, errDb, weights, nBands, pickLam, 4, rc, pickShelf, pick.bands, anchorShelf, 0.0078125, fsv);
     ms += c10v.ms;
     var o10v = aeSolveObjective(c10v.bands, c10v.total, errDb, weights, rc);
-    if (o10v < pickObj && aeRmsLocal(c10v.total) <= aeRmsLocal(pick.total)){ pick = c10v; pickObj = o10v; }
+    if (o10v < pickObj && aeRmsLocal(c10v.total) <= pickRms()){ pick = c10v; pickObj = o10v; }
   }
   /* --- Thi nghiem Pha A 2026-11-05 (vong 13:51): luot polish buoc nho hon nua c10w
        ngay sau c10v, chi duong <=10 band. Ly do: c10v (stepScale 0.0078125) van cai
@@ -2036,7 +2039,7 @@ function aeSolve(freqs, errDb, weights, nBands, anchorShelf, fs, seedBands){
     var c10w = aeSolveSingle(freqs, errDb, weights, nBands, pickLam, 4, rc, pickShelf, pick.bands, anchorShelf, 0.00390625, fsv);
     ms += c10w.ms;
     var o10w = aeSolveObjective(c10w.bands, c10w.total, errDb, weights, rc);
-    if (o10w < pickObj && aeRmsLocal(c10w.total) <= aeRmsLocal(pick.total)){ pick = c10w; pickObj = o10w; }
+    if (o10w < pickObj && aeRmsLocal(c10w.total) <= pickRms()){ pick = c10w; pickObj = o10w; }
   }
   /* --- Thi nghiem Pha A 2026-11-05 (vong 14:12): luot polish buoc nho hon nua c10x
        ngay sau c10w, chi duong <=10 band. Ly do: c10w (stepScale 0.00390625) van cai
@@ -2051,7 +2054,7 @@ function aeSolve(freqs, errDb, weights, nBands, anchorShelf, fs, seedBands){
     var c10x = aeSolveSingle(freqs, errDb, weights, nBands, pickLam, 4, rc, pickShelf, pick.bands, anchorShelf, 0.001953125, fsv);
     ms += c10x.ms;
     var o10x = aeSolveObjective(c10x.bands, c10x.total, errDb, weights, rc);
-    if (o10x < pickObj && aeRmsLocal(c10x.total) <= aeRmsLocal(pick.total)){ pick = c10x; pickObj = o10x; }
+    if (o10x < pickObj && aeRmsLocal(c10x.total) <= pickRms()){ pick = c10x; pickObj = o10x; }
   }
   /* --- Bo qua luot polish thua sau diem bat dong (Pha A 2026-11-05 18:29, c10z9) ---
        Lab do vong NM 18:29 tren 6 truong hop chuan (Mau A/B/C x harmanOE/
@@ -2126,7 +2129,7 @@ function aeSolve(freqs, errDb, weights, nBands, anchorShelf, fs, seedBands){
     var c10y = aeSolveSingle(freqs, errDb, weights, nBands, pickLam, 4, rc, pickShelf, pick.bands, anchorShelf, 0.0009765625, fsv);
     ms += c10y.ms;
     var o10y = aeSolveObjective(c10y.bands, c10y.total, errDb, weights, rc);
-    if (o10y < pickObj && aeRmsLocal(c10y.total) <= aeRmsLocal(pick.total)){ pick = c10y; pickObj = o10y; }
+    if (o10y < pickObj && aeRmsLocal(c10y.total) <= pickRms()){ pick = c10y; pickObj = o10y; }
     if (c10y.fixedPoint) skipSSz = true;
   }
   /* --- Thi nghiem Pha A 2026-11-05 (vong 15:14): huong polish KHAC sau c10y — tang so vong NM
@@ -2140,7 +2143,7 @@ function aeSolve(freqs, errDb, weights, nBands, anchorShelf, fs, seedBands){
     var c10z2 = aeSolveSingle(freqs, errDb, weights, nBands, pickLam, 20, rc, pickShelf, pick.bands, anchorShelf, 0.0009765625, fsv);
     ms += c10z2.ms;
     var o10z2 = aeSolveObjective(c10z2.bands, c10z2.total, errDb, weights, rc);
-    if (o10z2 < pickObj && aeRmsLocal(c10z2.total) <= aeRmsLocal(pick.total)){ pick = c10z2; pickObj = o10z2; }
+    if (o10z2 < pickObj && aeRmsLocal(c10z2.total) <= pickRms()){ pick = c10z2; pickObj = o10z2; }
     if (c10z2.fixedPoint) skipSSz = true;
   }
   /* --- Thi nghiem Pha A 2026-11-05 (vong 15:39): tang so vong NM tiep
@@ -2154,7 +2157,7 @@ function aeSolve(freqs, errDb, weights, nBands, anchorShelf, fs, seedBands){
     var c10z3 = aeSolveSingle(freqs, errDb, weights, nBands, pickLam, 40, rc, pickShelf, pick.bands, anchorShelf, 0.0009765625, fsv);
     ms += c10z3.ms;
     var o10z3 = aeSolveObjective(c10z3.bands, c10z3.total, errDb, weights, rc);
-    if (o10z3 < pickObj && aeRmsLocal(c10z3.total) <= aeRmsLocal(pick.total)){ pick = c10z3; pickObj = o10z3; }
+    if (o10z3 < pickObj && aeRmsLocal(c10z3.total) <= pickRms()){ pick = c10z3; pickObj = o10z3; }
     if (c10z3.fixedPoint) skipSSz = true;
   }
   /* --- Thi nghiem Pha A 2026-11-05 (vong 16:07): tang so vong NM tiep
@@ -2168,7 +2171,7 @@ function aeSolve(freqs, errDb, weights, nBands, anchorShelf, fs, seedBands){
     var c10z4 = aeSolveSingle(freqs, errDb, weights, nBands, pickLam, 80, rc, pickShelf, pick.bands, anchorShelf, 0.0009765625, fsv);
     ms += c10z4.ms;
     var o10z4 = aeSolveObjective(c10z4.bands, c10z4.total, errDb, weights, rc);
-    if (o10z4 < pickObj && aeRmsLocal(c10z4.total) <= aeRmsLocal(pick.total)){ pick = c10z4; pickObj = o10z4; }
+    if (o10z4 < pickObj && aeRmsLocal(c10z4.total) <= pickRms()){ pick = c10z4; pickObj = o10z4; }
     if (c10z4.fixedPoint) skipSSz = true;
   }
   /* --- Thi nghiem Pha A 2026-11-05 (vong 16:37): tang so vong NM tiep
@@ -2182,7 +2185,7 @@ function aeSolve(freqs, errDb, weights, nBands, anchorShelf, fs, seedBands){
     var c10z5 = aeSolveSingle(freqs, errDb, weights, nBands, pickLam, 160, rc, pickShelf, pick.bands, anchorShelf, 0.0009765625, fsv);
     ms += c10z5.ms;
     var o10z5 = aeSolveObjective(c10z5.bands, c10z5.total, errDb, weights, rc);
-    if (o10z5 < pickObj && aeRmsLocal(c10z5.total) <= aeRmsLocal(pick.total)){ pick = c10z5; pickObj = o10z5; }
+    if (o10z5 < pickObj && aeRmsLocal(c10z5.total) <= pickRms()){ pick = c10z5; pickObj = o10z5; }
     if (c10z5.fixedPoint) skipSSz = true;
   }
   /* --- Thi nghiem Pha A 2026-11-05 (vong 17:00): tang so vong NM tiep
@@ -2196,7 +2199,7 @@ function aeSolve(freqs, errDb, weights, nBands, anchorShelf, fs, seedBands){
     var c10z6 = aeSolveSingle(freqs, errDb, weights, nBands, pickLam, 320, rc, pickShelf, pick.bands, anchorShelf, 0.0009765625, fsv);
     ms += c10z6.ms;
     var o10z6 = aeSolveObjective(c10z6.bands, c10z6.total, errDb, weights, rc);
-    if (o10z6 < pickObj && aeRmsLocal(c10z6.total) <= aeRmsLocal(pick.total)){ pick = c10z6; pickObj = o10z6; }
+    if (o10z6 < pickObj && aeRmsLocal(c10z6.total) <= pickRms()){ pick = c10z6; pickObj = o10z6; }
     if (c10z6.fixedPoint) skipSSz = true;
   }
   /* --- Mo rong 2026-11-01 (vong tu dong 17:24): thu lai neo shelf
@@ -2221,11 +2224,11 @@ function aeSolve(freqs, errDb, weights, nBands, anchorShelf, fs, seedBands){
        anchorShelf=true; guard !anchorShelf chan de quy. Chi phi them ~0 o
        cac o tot (khong kich hoat) va mot luot giai 20 band o truong hop
        benh ly. Duong <=10 band khong cham toi. --- */
-  if (!anchorShelf && nBands > 10 && aeRmsLocal(pick.total) > 0.50){
+  if (!anchorShelf && nBands > 10 && pickRms() > 0.50){
     var anchored = aeSolve(freqs, errDb, weights, nBands, true, fsv, seedBands);
     ms += anchored.ms;
     var oAnch = aeSolveObjective(anchored.bands, anchored.total, errDb, weights, rc);
-    if (oAnch < pickObj && aeRmsLocal(anchored.total) <= aeRmsLocal(pick.total)){ pick = anchored; pickObj = oAnch; }
+    if (oAnch < pickObj && aeRmsLocal(anchored.total) <= pickRms()){ pick = anchored; pickObj = oAnch; }
   }
   /* --- Mo rong 2026-11-10 (vong tu dong 00:53, huong A): neo shelf co dieu kien
        cho duong 10 band — AP DUNG, co cai thien. Them 1 khoi ngay sau khoi neo
@@ -2249,11 +2252,11 @@ function aeSolve(freqs, errDb, weights, nBands, anchorShelf, fs, seedBands){
        aeV3 khong doi. Y tuong luot ke: huong A — rang buoc mem tan so lowshelf (kep
        <= 300 Hz thay vi dong bang 105/55) cho W2; hoac huong C — tiep tuc ra loudFitError;
        hoac huong D — do measureFps/specDraw. --- */
-  if (!anchorShelf && nBands <= 10 && aeRmsLocal(pick.total) > 0.50){
+  if (!anchorShelf && nBands <= 10 && pickRms() > 0.50){
     var anchored10 = aeSolve(freqs, errDb, weights, nBands, true, fsv, seedBands);
     ms += anchored10.ms;
     var oAnch10 = aeSolveObjective(anchored10.bands, anchored10.total, errDb, weights, rc);
-    if (oAnch10 < pickObj && aeRmsLocal(anchored10.total) <= aeRmsLocal(pick.total)){ pick = anchored10; pickObj = oAnch10; }
+    if (oAnch10 < pickObj && aeRmsLocal(anchored10.total) <= pickRms()){ pick = anchored10; pickObj = oAnch10; }
   }
   /* --- Mo rong 2026-11-10 (vong tu dong 02:07, huong A): kep mem tan so
        lowshelf <= 300 Hz cho duong 10 band — AP DUNG, co cai thien. Them 1 khoi
@@ -2380,14 +2383,14 @@ function aeSolve(freqs, errDb, weights, nBands, anchorShelf, fs, seedBands){
        sau va truy hoi luong giac 20:20/20:30 (treo tu 20:19/23:49); hoac cai
        thien do aeV3 thanh median 3 rep (treo tu 02:40); hoac huong C — ra soat
        isoPhonFromSpl tren luoi phon rong 10–100 phon. --- */
-  if (!anchorShelf && nBands <= 10 && AE_SHELF_CAP !== 200 && aeRmsLocal(pick.total) > 0.50){
+  if (!anchorShelf && nBands <= 10 && AE_SHELF_CAP !== 200 && pickRms() > 0.50){
     var prevShelfCap = AE_SHELF_CAP;
     try {
       AE_SHELF_CAP = 200;
       var capped = aeSolve(freqs, errDb, weights, nBands, false, fsv, seedBands);
       ms += capped.ms;
       var oCap = aeSolveObjective(capped.bands, capped.total, errDb, weights, rc);
-      if (oCap < pickObj && aeRmsLocal(capped.total) <= aeRmsLocal(pick.total)){ pick = capped; pickObj = oCap; }
+      if (oCap < pickObj && aeRmsLocal(capped.total) <= pickRms()){ pick = capped; pickObj = oCap; }
     } finally { AE_SHELF_CAP = prevShelfCap; }
   }
   /* --- Mo rong 2026-11-02 (vong tu dong 23:24): song song RLS6 + chap nhan
@@ -2412,7 +2415,7 @@ function aeSolve(freqs, errDb, weights, nBands, anchorShelf, fs, seedBands){
       var dual = aeSolve(freqs, errDb, weights, nBands, false, fsv, seedBands);
       ms += dual.ms;
       var oDual = aeSolveObjective(dual.bands, dual.total, errDb, weights, rc);
-      if (oDual < pickObj && aeRmsLocal(dual.total) <= aeRmsLocal(pick.total)){ pick = dual; pickObj = oDual; }
+      if (oDual < pickObj && aeRmsLocal(dual.total) <= pickRms()){ pick = dual; pickObj = oDual; }
     } finally { AE_RLS_MODE = prevRlsMode; }
   }
   /* --- Mo rong 2026-11-03 (vong tu dong 00:04): song song rc/2 + chap nhan
@@ -2434,7 +2437,7 @@ function aeSolve(freqs, errDb, weights, nBands, anchorShelf, fs, seedBands){
       var rcDual = aeSolve(freqs, errDb, weights, nBands, false, fsv, seedBands);
       ms += rcDual.ms;
       var oRc = aeSolveObjective(rcDual.bands, rcDual.total, errDb, weights, rc);
-      if (oRc < pickObj && aeRmsLocal(rcDual.total) <= aeRmsLocal(pick.total)){ pick = rcDual; pickObj = oRc; }
+      if (oRc < pickObj && aeRmsLocal(rcDual.total) <= pickRms()){ pick = rcDual; pickObj = oRc; }
     } finally { AE_RC_SCALE = prevRcScale; }
   }
   /* --- Mở rộng 2026-11-10 (vòng tự động 09:12, hướng A): T1b chọn band theo chi phí loại bỏ, chỉ ở lượt ngoài cùng — ÁP DỤNG, có cải thiện lớn.
@@ -2451,7 +2454,7 @@ function aeSolve(freqs, errDb, weights, nBands, anchorShelf, fs, seedBands){
 /* --- Mở rộng 2026-11-10 (vòng tự động 08:29, hướng A): neo theo phần dư (residual-seeded polish) — ÁP DỤNG, có cải thiện. Mở ca tệ nhất mới của sweep: Bose QuietComfort 20 (passive) × harmanIE (RMS sweep 1,4089, tái lập đúng 3 rep; 5/7 ca tệ nhất hiện là phone này). Chẩn đoán: KHÁC mọi ca tệ trước (K250/K271/Hi-X15/SP-5 đều lỗi bass) — 91,8% MSE ở 2–10 kHz, đỉnh dư −7,03 dB @ 7452,9 Hz; err thô: +6,6 dB @ 5,9k → +0,45 dB @ 7,45k → +9,6 dB @ 9,4k (đỉnh nhọn của phone ở ~7,45 kHz, rộng ~1/4 octave); nulls=[]; 6 band kẹp; viol=0; sàn 20 band chỉ 0,4933 (đỉnh dư còn −2,86 dB @ cùng 7452,9 Hz). Solver không đặt band nào gần 7,45 kHz (gần nhất @6000 +12 dB tràn lên đỉnh) vì NM chỉ di chuyển cục bộ từ seed RLS 200–8000 Hz. Biến thể T1: sau aeSolve đầy đủ, nếu RMS > 0,50 thì lấy f_pk = tần số có |phần dư| lớn nhất (≤10 kHz), thay band peaking có tần số > 10 kHz (rẻ nhất cho RMS ≤10 kHz) bằng peaking @ f_pk, gain = phần dư tại f_pk (kẹp theo cap treble/full), Q = 3, rồi chạy tiếp NM 4 vòng từ band đó (aeSolveSingle với contBands — bỏ qua RLS như aeTryCont) với 4 tổ hợp (lam null/0,3 × shelf 105/55), chỉ giữ khi objective cùng rc thấp hơn VÀ RMS thô không tệ đi (tiêu chí chặt như khối neo/cap). Không chạm AE_LIMITS; không thêm hàm/tên mới; Mẫu A/B/C có RMS < 0,50 nên không kích hoạt — aeV1/aeV2/aeV3 không đổi theo cấu trúc. Lab Node trên hàm thật (lượt 08:29, chạy 2 lần, kết quả xác định giống hệt trừ ms): K271 × harmanOE RMS 1,1342 → 0,7213 (−36,4%), obj 1,6878 → 1,4126, f_pk 20 Hz, thay peaking@19439 +8,00 bằng @20 +5,02/Q3 → @20 +5,89/Q2,03, viol=0; Bose × harmanIE/diffuseFieldKemar/soundguys: RMS thô cải thiện (1,4089 → 1,1747; 1,4042 → 1,1811; 1,3862 → 1,3407) NHƯNG objective tệ đi (9,3311 → 15,8055; 8,8852 → 15,2207; 9,6176 → 16,2552) — mất band >10 kHz làm hỏng mục tiêu toàn lưới trên 10 kHz — nên tiêu chí chặt TỪ CHỐI đúng cả 3 ca, Bose giữ nguyên 1,4089; W2 SP-5/K250/Hi-X15 không có band peaking >10 kHz nên T1 không áp; Mẫu A/B/C giữ nguyên tuyệt đối. Chi phí: chỉ các ca RMS > 0,50 tốn thêm ~100 ms lab Node (4 lần aeSolveSingle 4 vòng NM); Mẫu A không kích hoạt nên cổng aeV3 không đổi. Ý tưởng lượt kế: hướng B — đo lại profile 3 pha buildFirTaps sau vá truy hồi lượng giác (treo từ 20:19/23:49); hoặc hướng A — mở ca tệ tiếp theo của sweep (Bose QC20 × rtings 1,2916, ca tệ nhất của bản không-passive). --- */
   for (var t1Pass=0; t1Pass<2; t1Pass++){
     var t1Accepted = false;
-    if (!anchorShelf && nBands <= 10 && aeRmsLocal(pick.total) > 0.50){
+    if (!anchorShelf && nBands <= 10 && pickRms() > 0.50){
       var t1PeakF = 0, t1PeakR = 0;
       for (var t1GridI=0;t1GridI<freqs.length;t1GridI++) if (freqs[t1GridI]<=10000){ var t1Err = errDb[t1GridI]-pick.total[t1GridI]; if (Math.abs(t1Err) > Math.abs(t1PeakR)){ t1PeakR = t1Err; t1PeakF = freqs[t1GridI]; } }
       /* T1b (vòng tự động 09:12, hướng A): chọn band thay thế theo chi phí loại bỏ rẻ nhất trên objective — thay vì band peaking >10 kHz rẻ nhất theo |gain| (T1 cũ làm Bose hỏng objective toàn lưới trên 10 kHz). Với mỗi band, gain=0 rồi tính lại total + objective; band có objective sau khi loại bỏ thấp nhất là band hi sinh rẻ nhất. CHỈ ở lượt ngoài cùng (AE_SHELF_CAP===0); trong đệ quy capped (cap=200) giữ chọn band T1 cũ để ứng viên đệ quy giống hệt bản trước vá (tránh K271 tụt RMS như lần vá đầu). */
@@ -2480,7 +2483,7 @@ function aeSolve(freqs, errDb, weights, nBands, anchorShelf, fs, seedBands){
           var t1CandObj = aeSolveObjective(t1Cand.bands, t1Cand.total, errDb, weights, rc);
           if (t1CandObj < t1BestObj){ t1BestObj = t1CandObj; t1BestRes = t1Cand; }
         }
-        if (t1BestRes && t1BestObj < pickObj && aeRmsLocal(t1BestRes.total) <= aeRmsLocal(pick.total)){ pick = t1BestRes; pickObj = t1BestObj; t1Accepted = true; }
+        if (t1BestRes && t1BestObj < pickObj && aeRmsLocal(t1BestRes.total) <= pickRms()){ pick = t1BestRes; pickObj = t1BestObj; t1Accepted = true; }
       }
     }
     if (!t1Accepted) break;
@@ -2504,13 +2507,13 @@ function aeSolve(freqs, errDb, weights, nBands, anchorShelf, fs, seedBands){
   if (AE_SHELF_CAP === 0){
     for (var t1cPass=0; t1cPass<2; t1cPass++){
       var t1cAccepted = false;
-      if (!anchorShelf && nBands <= 10 && aeRmsLocal(pick.total) > 0.50){
+      if (!anchorShelf && nBands <= 10 && pickRms() > 0.50){
         var t1cPeakF = 0, t1cPeakR = 0;
         for (var t1cGridI=0;t1cGridI<freqs.length;t1cGridI++) if (freqs[t1cGridI]<=10000){ var t1cErr = errDb[t1cGridI]-pick.total[t1cGridI]; if (Math.abs(t1cErr) > Math.abs(t1cPeakR)){ t1cPeakR = t1cErr; t1cPeakF = freqs[t1cGridI]; } }
         var t1cCapDb = t1cPeakF > AE_LIMITS.trebleHz ? AE_LIMITS.trebleGainMax : AE_LIMITS.gainMax;
         var t1cSeedGain = Math.max(-t1cCapDb, Math.min(t1cCapDb, t1cPeakR));
         var t1cBestRes = null, t1cBestObj = Infinity;
-        var t1cPickRms = aeRmsLocal(pick.total);
+        var t1cPickRms = pickRms();
         var t1cLamArr = [null, 0.3], t1cShelfArr = [105, 55];
         var t1cWinLamI = t1cLamArr.indexOf(pickLam), t1cWinShelfI = t1cShelfArr.indexOf(pickShelf), t1cGateOn = (t1cWinLamI>=0 && t1cWinShelfI>=0), t1cStage1Hit = false;
         for (var t1cStage=0;t1cStage<2;t1cStage++){
@@ -2571,7 +2574,7 @@ function aeSolve(freqs, errDb, weights, nBands, anchorShelf, fs, seedBands){
      (đỉnh #3 Q3, đỉnh #2 Q3, đỉnh #1 Q4,5, đỉnh #1 Q6), chạy SAU T1c, 1 pass, lọc chặt
      như T1c nên theo cấu trúc không ca nào tệ đi; chỉ ca RMS > 0,50 kích hoạt. */
   if (AE_SHELF_CAP === 0){
-    if (!anchorShelf && nBands <= 10 && aeRmsLocal(pick.total) > 0.50){
+    if (!anchorShelf && nBands <= 10 && pickRms() > 0.50){
       var t1dP = [{f:0,r:0},{f:0,r:0},{f:0,r:0}];
       for (var t1dI=0;t1dI<freqs.length;t1dI++) if (freqs[t1dI]<=10000){ var t1dErr = errDb[t1dI]-pick.total[t1dI]; var t1dAbs = Math.abs(t1dErr);
         if (t1dAbs > Math.abs(t1dP[0].r)){ t1dP[2]=t1dP[1]; t1dP[1]=t1dP[0]; t1dP[0]={f:freqs[t1dI],r:t1dErr}; }
@@ -2589,7 +2592,7 @@ function aeSolve(freqs, errDb, weights, nBands, anchorShelf, fs, seedBands){
         var t1dCapDb = t1dSeeds[t1dS].f > AE_LIMITS.trebleHz ? AE_LIMITS.trebleGainMax : AE_LIMITS.gainMax;
         var t1dSeedGain = Math.max(-t1dCapDb, Math.min(t1dCapDb, t1dSeeds[t1dS].g));
         var t1dBestRes = null, t1dBestObj = Infinity;
-        var t1dPickRms = aeRmsLocal(pick.total);
+        var t1dPickRms = pickRms();
         var t1dStage1Hit = false;
         for (var t1dStage=0;t1dStage<2;t1dStage++){
         if (t1dStage===1 && (!t1dGateOn || !t1dStage1Hit)) break;
@@ -2651,7 +2654,7 @@ function aeSolve(freqs, errDb, weights, nBands, anchorShelf, fs, seedBands){
   if (AE_SHELF_CAP === 0){
     for (var t1ePass=0; t1ePass<6; t1ePass++){
       var t1eAccepted = false;
-      if (!anchorShelf && nBands <= 10 && aeRmsLocal(pick.total) > 0.50){
+      if (!anchorShelf && nBands <= 10 && pickRms() > 0.50){
       var t1eP = [{f:0,r:0},{f:0,r:0},{f:0,r:0},{f:0,r:0},{f:0,r:0}];
       for (var t1eI=0;t1eI<freqs.length;t1eI++) if (freqs[t1eI]<=10000){ var t1eErr = errDb[t1eI]-pick.total[t1eI]; var t1eAbs = Math.abs(t1eErr);
         if (t1eAbs > Math.abs(t1eP[0].r)){ t1eP[4]=t1eP[3]; t1eP[3]=t1eP[2]; t1eP[2]=t1eP[1]; t1eP[1]=t1eP[0]; t1eP[0]={f:freqs[t1eI],r:t1eErr}; }
@@ -2673,7 +2676,7 @@ function aeSolve(freqs, errDb, weights, nBands, anchorShelf, fs, seedBands){
         var t1eCapDb = t1eSeeds[t1eS].f > AE_LIMITS.trebleHz ? AE_LIMITS.trebleGainMax : AE_LIMITS.gainMax;
         var t1eSeedGain = Math.max(-t1eCapDb, Math.min(t1eCapDb, t1eSeeds[t1eS].g));
         var t1eBestRes = null, t1eBestObj = Infinity;
-        var t1ePickRms = aeRmsLocal(pick.total);
+        var t1ePickRms = pickRms();
         var t1eStage1Hit = false;
         for (var t1eStage=0;t1eStage<2;t1eStage++){
         if (t1eStage===1 && (!t1eGateOn || !t1eStage1Hit)) break;
