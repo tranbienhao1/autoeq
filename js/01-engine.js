@@ -185,6 +185,35 @@ function biquadMagDb(c, freq, fs){
   var dr = 1     + c.a1*cw + c.a2*cw2, di = -(c.a1*sw + c.a2*sw2);
   return 4.342944819032518*Math.log(Math.max(1e-18,(nr*nr+ni*ni)/Math.max(1e-24,(dr*dr+di*di)))); /* (vòng tự động 12:43, hướng B — ÁP DỤNG, vá code): 10*Math.log10(x) -> 4.342944819032518*Math.log(x) (10/ln10, cùng hằng số đã dùng trong wasmJsArray/geqFit/harmanIe13) — Math.log nhanh hơn Math.log10 trên V8; biểu thức kẹp max(1e-18, ...) và max(1e-24, ...) giữ nguyên, thứ tự tính nr/ni/dr/di không đổi. Lab Node trên hàm thật trích verbatim (harness /tmp/lab_biquad.js, 2 lần chạy độc lập): parity 4.590 kiểm tra, 82,61% giống từng bit, lệch tối đa 3,55e-15 dB mức ulp; tốc độ paired-median xen kẽ 15 vòng x 30 rep (lưới 20 band x 881 điểm): lần 1 1,0885x thắng 11/15, lần 2 1,0808x thắng 13/15; chạy lại lần 2 độc lập 1,1425x/1,0830x thắng 11-12/15 — cải thiện ổn định >1 trên mọi workload. biquadMagDb là đường nóng của totalDbAt/gridTotalDb (fallback JS), loudRespDb, geqFit và psV2/psV5; solver aeSolve không dùng hàm này nên aeV3 không đổi theo cấu trúc (không đo lại; gần nhất 468/482 ms ngày 2026-11-11). Bộ đếm lab-only vẫn 12. Lượt kế: nhóm C. */
 }
+/* (vòng tự động 08:24, hướng B): cache fingerprint trạng thái PSY cho psychoCoeffs — psychoCoeffs dựng chuỗi khóa (nối chuỗi + join, ~0,8 µs/lần, đắt hơn cả 1 lần totalDbAt 20 band) mỗi lần gọi, và mọi đường nóng đều trả giá này: totalDbAt (golden-section của computeAutoPre gọi ~82 lần/lượt), gridTotalDb (gọi mỗi frame drawGraph chỉ để refresh PSY_CC.key), vòng psycho của gridTotalDb. psyCoeffsFast so sánh trạng thái PSY hiện hành với snapshot lần gọi psychoCoeffs gần nhất bằng === từng trường (fs, bypassAll, loud.on, từng phần tử loud.cur, notch.on/freq/depth/q — đúng các đầu vào quyết định đầu ra của psychoCoeffs, cùng ngữ nghĩa khóa chuỗi của nó) — nếu khớp tuyệt đối thì khôi phục cặp key/v của PSY_CC từ snapshot và trả lại đúng mảng hệ số đã cache (hàm thuần theo các trường này nên giống từng bit), bỏ qua dựng khóa chuỗi; mọi trường hợp khác rơi về gọi psychoCoeffs gốc nguyên vẹn và chụp snapshot mới SAU khi gọi (psychoCoeffs có thể chuẩn hoá PSY.loud.cur). */
+var PSY_FP = null;
+function psyCoeffsFast(fs){
+  var fp = PSY_FP;
+  if (fp && fp.fs === fs && typeof PSY !== "undefined" && PSY && PSY.loud && PSY.notch && Array.isArray(PSY.loud.cur)
+      && fp.bypassAll === PSY.bypassAll && fp.loudOn === PSY.loud.on
+      && fp.notchOn === PSY.notch.on && fp.notchFreq === PSY.notch.freq && fp.notchDepth === PSY.notch.depth && fp.notchQ === PSY.notch.q
+      && fp.cur.length === PSY.loud.cur.length){
+    var _same = true;
+    for (var _ci = 0; _ci < fp.cur.length; _ci++) if (fp.cur[_ci] !== PSY.loud.cur[_ci]){ _same = false; break; }
+    if (_same){
+      if (typeof PSY_CC !== "undefined" && PSY_CC){ PSY_CC.key = fp.key; PSY_CC.v = fp.cs; }
+      return fp.cs;
+    }
+  }
+  var cs = psychoCoeffs(fs);
+  PSY_FP = { fs: fs,
+    bypassAll: (typeof PSY !== "undefined" && PSY) ? PSY.bypassAll : undefined,
+    loudOn: (typeof PSY !== "undefined" && PSY && PSY.loud) ? PSY.loud.on : undefined,
+    cur: (typeof PSY !== "undefined" && PSY && PSY.loud && Array.isArray(PSY.loud.cur)) ? PSY.loud.cur.slice() : [],
+    notchOn: (typeof PSY !== "undefined" && PSY && PSY.notch) ? PSY.notch.on : undefined,
+    notchFreq: (typeof PSY !== "undefined" && PSY && PSY.notch) ? PSY.notch.freq : undefined,
+    notchDepth: (typeof PSY !== "undefined" && PSY && PSY.notch) ? PSY.notch.depth : undefined,
+    notchQ: (typeof PSY !== "undefined" && PSY && PSY.notch) ? PSY.notch.q : undefined,
+    key: (typeof PSY_CC !== "undefined" && PSY_CC) ? PSY_CC.key : null,
+    cs: cs };
+  return cs;
+}
+
 function totalDbAt(freq, fs){
   /* Band tắt hoặc gain = 0: bandCoeffs trả hệ số đồng nhất (identity) và
      biquadMagDb(identity) = 0 dB đúng tuyệt đối, nên bỏ qua không đổi tổng —
@@ -195,7 +224,7 @@ function totalDbAt(freq, fs){
   /* Giai đoạn 3: cộng shelf loudness + notch cá nhân (hàm ở khối Psychoacoustics, nạp sau) */
   if (typeof PSY!=="undefined" && PSY && !PSY.bypassAll && typeof psychoDbAt==="function"){
     /* (vòng tự động 17:27, hướng B — ÁP DỤNG, vá code): inline vòng psycho vào totalDbAt dùng chung lượng giác đã tính — cw/sw/cw2/sw2 chỉ phụ thuộc (freq, fs) nên khi đã tính cho band thì dùng lại cho mọi section psycho, thay vì psychoDbAt tính lại cos/sin cho cùng (freq, fs); tổng psycho tích lũy riêng _ps=0 theo đúng thứ tự section 0..n-1 rồi cộng vào s một lần (s += _ps) nên thứ tự cộng và mọi double giống hệt đường gọi psychoDbAt cũ; điều kiện bỏ qua PSY_ID và biểu thức nr/ni/dr/di + phép log giữ nguyên từng toán hạng như psychoDbAt. */
-    var _cs = psychoCoeffs(fs), _ps = 0, _pi;
+    var _cs = psyCoeffsFast(fs), _ps = 0, _pi;
     for(_pi=0; _pi<_cs.length; _pi++) if(_cs[_pi] !== PSY_ID){ if(!_td){ var _w2 = 2*Math.PI*freq/fs; cw = Math.cos(_w2); sw = Math.sin(_w2); cw2 = 2*cw*cw - 1; sw2 = 2*sw*cw; _td=true; } var _c = _cs[_pi]; var _nr = _c.b0 + _c.b1*cw + _c.b2*cw2, _ni = -(_c.b1*sw + _c.b2*sw2); var _dr = 1 + _c.a1*cw + _c.a2*cw2, _di = -(_c.a1*sw + _c.a2*sw2); _ps += 4.342944819032518*Math.log(Math.max(1e-18,(_nr*_nr+_ni*_ni)/Math.max(1e-24,(_dr*_dr+_di*_di)))); }
     s += _ps;
   }
@@ -584,7 +613,7 @@ function gridTotalDb(N, fs){
   }
   var psyKey = null;
   if (typeof PSY !== "undefined" && PSY && typeof psychoCoeffs === "function" && typeof PSY_CC !== "undefined"){
-    psychoCoeffs(fs); /* bảo đảm PSY_CC.key là chữ ký hiện hành */
+    psyCoeffsFast(fs); /* bảo đảm PSY_CC.key là chữ ký hiện hành (fingerprint hit khôi phục cặp key/v) */
     psyKey = PSY_CC.key;
   }
   if (c.psyKey !== psyKey){
@@ -594,7 +623,7 @@ function gridTotalDb(N, fs){
       var _gf2 = GRID_FREQ_CACHE[N];
       if (!_gf2){ _gf2 = new Float64Array(N + 1); for (k = 0; k <= N; k++) _gf2[k] = 20*Math.pow(1000, k/N); if (Object.keys(GRID_FREQ_CACHE).length > 16) GRID_FREQ_CACHE = {}; GRID_FREQ_CACHE[N] = _gf2; }
       /* (vòng tự động 08:49, hướng B — ÁP DỤNG, vá code): inline psycho vào gridTotalDb — psychoCoeffs(fs) gọi MỘT lần trước vòng lưới thay vì mỗi điểm (psychoDbAt gọi lại mỗi lần, dựng chuỗi khóa + join mỗi điểm dù cache trúng); thân vòng sao chép nguyên văn psychoDbAt (lượng giác lười ở section hoạt động đầu tiên, biểu thức nr/ni/dr/di + log + kẹp giữ nguyên từng toán hạng/thứ tự, cộng dồn s=0 theo section 0..n-1) nên pa[k] giống từng bit. Guard typeof psychoDbAt giữ nguyên để hành vi khi thiếu khối Psychoacoustics không đổi. */
-      var _pcs = psychoCoeffs(fs);
+      var _pcs = psyCoeffsFast(fs);
       var _pt = gridTrigTable(N, fs, _gf2);
       /* (vòng tự động 04:54, hướng B — ÁP DỤNG, vá code): lọc sẵn section psycho đang hoạt động (_act) MỘT lần trước vòng lưới thay vì kiểm tra !== PSY_ID tại từng điểm k × từng section — _pcs cố định trong suốt phép tính nên danh sách lọc giữ nguyên thứ tự section và thứ tự cộng _s (0 + section hoạt động theo thứ tự gốc), đọc lượng giác ở section hoạt động đầu tiên giữ nguyên, mọi double của pa/total GIỐNG TỪNG BIT theo cấu trúc (kể cả không section nào hoạt động: _s=0); cùng mẫu vá psyAct trong buildFirTaps áp sang vòng psycho của gridTotalDb. Lab Node trên hàm thật trích verbatim (hidden_files/run_20261127_0454_B/lab/, 2 lần bench độc lập): parity 66/66 kịch bản GIỐNG TỪNG BIT cả 2 lần (Object.is trên total + đồng nhất đối tượng mảng khi trúng cache; gồm N 0/1/7/220/240/880/960 × fs 44100/48000/96000/22050/0/NaN, 0/1/10/20 band, band tắt/gain 0, psycho all-identity/mixed/full/empty/null-coeffs, đổi psyKey/fs/N, lặp lại cache-hit, fuzz 30); tốc độ paired-median xen kẽ 15 vòng trên đường psycho-recompute (đổi psyKey mỗi lần gọi, 10 band N=880): lần 1 1,6634x thắng 15/15, lần 2 1,6363x thắng 14/15 (control old-vs-old 1,0025x) — cải thiện ổn định. Không chạm solver/WASM/FIR/QA logic; aeV3 không đổi theo cấu trúc (không đo lại; gần nhất 468/482 ms ngày 2026-11-11). QA trình duyệt đầy đủ chưa chạy được trên VM (headless Chrome bị chặn Hatch WebGL). Lượt kế: nhóm C. */
       var _act = [];
