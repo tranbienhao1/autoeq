@@ -34,7 +34,7 @@ function qaActiveCoeffs(fs){
     if (typeof PSY !== "undefined" && PSY && (PSY.bypassAll || (PSY.loud && PSY.notch && !PSY.loud.on && !PSY.notch.on))){
       if (typeof PSY_ID !== "undefined" && PSY_ID && PSY_ID.b0 === 1 && PSY_ID.b1 === 0 && PSY_ID.b2 === 0 && PSY_ID.a1 === 0 && PSY_ID.a2 === 0 && PSY.loud && Array.isArray(PSY.loud.cur)) _psySkip = true;
     }
-    if (!_psySkip){ var _pc = psychoCoeffs(fs); for (var _pi = 0; _pi < _pc.length; _pi++) pushNZ(_pc[_pi]); }
+    if (!_psySkip){ var _pc = (typeof psyCoeffsFast === "function") ? psyCoeffsFast(fs) : psychoCoeffs(fs); /* (vòng tự động 10:24, hướng B — ÁP DỤNG, vá code): dùng psyCoeffsFast thay cho psychoCoeffs trong qaActiveCoeffs — psychoCoeffs dựng chuỗi khóa (nối chuỗi + join, ~0,9 µs/lần) mỗi lần gọi kể cả khi trúng cache PSY_CC, trong khi psyCoeffsFast so fingerprint trạng thái PSY bằng === từng trường và trả lại đúng mảng đã cache; mọi trường hợp khác rơi về psychoCoeffs gốc nguyên vẹn (kể cả NaN tự trượt fingerprint, cur chuẩn hoá, lỗi ném) nên kết quả GIỐNG TỪNG BIT theo cấu trúc. Đây là điểm gọi trong qaActiveCoeffs (đường nóng của qaPhaseGdData/qaGdMaxLowOnly, chạy trước cả memoize QA_PGD_LAST) chưa được phủ bởi fingerprint 08:24/09:54. */ for (var _pi = 0; _pi < _pc.length; _pi++) pushNZ(_pc[_pi]); }
   }
   return out;
 }
