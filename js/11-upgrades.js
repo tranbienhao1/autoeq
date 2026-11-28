@@ -45,7 +45,7 @@ function upSmoothWidth(vals, freqs, widthFn){
       var _halves = new Array(n);
       for (_k = 0; _k < n; _k++) _halves[_k] = widthFn(freqs[_k]) / 2;
       for (i = 0; i < n; i++){
-        var _halfEps = _halves[i] + 1e-12, _li = logF[i];
+        var _halfEps = _halves[i] * Math.LN2 + 1e-12, _li = logF[i]; /* (vòng tự động 12:54, hướng C — ÁP DỤNG, vá code): sửa lệch đơn vị log trong upSmoothWidth — widthFn trả về độ rộng theo OCTAVE (upErbWidthOct dùng Math.log2, upGuardIntervals dùng 1/3 oct, quy ước toàn codebase như aeSmooth) nhưng logF là log TỰ NHIÊN nên cửa sổ cũ rộng hơn 1/ln2 ≈ 1,443× so với ý định (ERB smoothing trung bình trên ~1,44 ERB, trend guard 0,48 oct thay vì 1/3 oct); nay đổi nửa-độ-rộng sang đơn vị log tự nhiên bằng ×Math.LN2 ở cả đường nhanh và đường gốc — mọi nhánh biên (width 0/âm/NaN/Infinity) giữ nguyên hành vi. Lab Node trên hàm thật trích verbatim (hidden_files/run_20261128_1254_C/lab/, harness.js + bench2.js, 2 lần chạy độc lập): parity GIỐNG TỪNG BIT ở mọi ca không đổi (flat, width 0/NaN/Infinity/âm, rỗng/đơn, chưa sắp, NaN/±Inf ở giá trị/tần số); độ chính xác so với tham chiếu độc lập miền log2 (cửa sổ |log2(fj/fi)| <= width/2): spike 400 Hz của upSelfCheck1 cũ 20/9=2,2222 → mới 20/5=4,0 đúng tham chiếu (lệch tối đa 2,22 dB → 0); đường cong mượt ERB241 RMS lệch 0,2131 dB (max 1,0643) → 0 tuyệt đối; trend 1/3-oct RMS lệch 0,0384 (max 0,1722) → 0; số điểm cửa sổ ở 1/3 oct trên lưới 1/24-oct: 11 → 9 (đúng 1/3 oct); guard vẫn phát hiện lõm sâu (1 vùng cả hai bản); upSelfCheck1 7/7 PASS cả hai bản; tốc độ trong sàn nhiễu VM (control old/old dao động 0,74–1,88; old/new median 0,936 thắng 8/21 — hàm chỉ gọi khi bấm nút/smoothing). Không chạm solver/WASM/FIR/QA logic; aeV3 không đổi theo cấu trúc (không đo lại; gần nhất 468/482 ms ngày 2026-11-11). QA trình duyệt đầy đủ chưa chạy được trên VM (headless Chrome bị chặn Hatch WebGL). Lượt kế: nhóm D. */
         if (!(_halfEps >= 0)){ out[i] = vals[i]; continue; }
         var _L, _R;
         if (_halfEps === Infinity){ _L = 0; _R = n - 1; }
@@ -69,7 +69,7 @@ function upSmoothWidth(vals, freqs, widthFn){
   }
   for (i = 0; i < n; i++){
     var half = widthFn(freqs[i]) / 2, s = 0, c = 0, li = logF[i], _kc2 = 0;
-    var halfEps = half + 1e-12;
+    var halfEps = half * Math.LN2 + 1e-12; /* (vòng tự động 12:54, hướng C): nửa-độ-rộng octave → log tự nhiên (×ln2), cùng sửa như đường nhanh — xem ghi chú ở đường nhanh. */
     for (j = 0; j < n; j++){
       if (Math.abs(logF[j] - li) <= halfEps){ var _ky2 = vals[j] - _kc2; var _kt2 = s + _ky2; _kc2 = (_kt2 - s) - _ky2; s = _kt2; c++; }
     }
