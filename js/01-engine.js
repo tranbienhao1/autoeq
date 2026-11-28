@@ -918,7 +918,8 @@ function buildFirTaps(fs, L){
       var _b = bands[_ci];
       _refs[_ci] = (_b.on && _b.gain !== 0) ? bandCoeffs(_ci, fs) : null;
     }
-    var _psyRef = (typeof PSY !== "undefined" && PSY && !PSY.bypassAll && typeof psychoDbAt === "function") ? psychoCoeffs(fs) : null;
+    /* (vòng tự động 09:54, hướng B — ÁP DỤNG, vá code): dùng psyCoeffsFast thay cho psychoCoeffs trong fingerprint memoize của buildFirTaps (và thân hàm) — psychoCoeffs dựng chuỗi khóa (nối chuỗi + join, ~0,94 µs/lần đo single-realm) mỗi lần gọi kể cả khi trúng cache PSY_CC, trong khi psyCoeffsFast so fingerprint trạng thái PSY bằng === từng trường và trả lại đúng mảng đã cache; mọi trường hợp khác rơi về psychoCoeffs gốc nguyên vẹn (kể cả NaN tự trượt fingerprint, cur chuẩn hoá, lỗi ném) nên taps GIỐNG TỪNG BIT theo cấu trúc. Đây là điểm gọi buildFirTaps chưa được phủ bởi fingerprint 08:24 (totalDbAt/gridTotalDb). Lab Node trên hàm thật trích verbatim (hidden_files/run_20261128_0954_B/lab/, 2 lần bench độc lập): parity 384/384 GIỐNG TỪNG BIT (Object.is/Buffer taps; gồm 0/1/10/20 band × psycho bật/tắt × fs 44100/48000/96000/0/NaN × L 0/1/255/511/1023/4097, cache-hit identity, mutate psycho/band, null-band ném đúng TypeError, NaN-cur, bypassAll); tốc độ single-realm paired-median xen kẽ 21 vòng: psyCoeffsFast vs psychoCoeffs lần 1 39,22× thắng 21/21, lần 2 40,14× thắng 21/21; fingerprint buildFirTaps (bandCoeffs loop + psycho) lần 1 4,56× thắng 21/21, lần 2 4,76× thắng 21/21 — tiết kiệm ~0,85 µs/lần gọi hit. Không chạm solver/WASM/FIR/QA logic; aeV3 không đổi theo cấu trúc (không đo lại; gần nhất 468/482 ms ngày 2026-11-11). QA trình duyệt đầy đủ chưa chạy được trên VM (headless Chrome bị chặn Hatch WebGL). Lượt kế: nhóm C. */
+    var _psyRef = (typeof PSY !== "undefined" && PSY && !PSY.bypassAll && typeof psychoDbAt === "function") ? psyCoeffsFast(fs) : null;
     _fcRefs = _refs; _fcPsy = _psyRef; _fcOk = true;
     if (FIR_TAPS_LAST && FIR_TAPS_LAST.fs === fs && FIR_TAPS_LAST.L === L && FIR_TAPS_LAST.psyRef === _psyRef && FIR_TAPS_LAST.refs.length === _refs.length){
       var _same = true;
@@ -930,7 +931,7 @@ function buildFirTaps(fs, L){
   var nB=bands.length, cc=new Array(nB), act=new Array(nB);
   for (i=0;i<nB;i++){ act[i]=bands[i].on && bands[i].gain!==0; cc[i]=act[i]?bandCoeffs(i,fs):null; }
   var hasPsy=(typeof PSY!=="undefined" && PSY && !PSY.bypassAll && typeof psychoDbAt==="function");
-  var psyCs = hasPsy ? psychoCoeffs(fs) : null; /* hoist: 1 lan/goi thay vi 2049 lan trong psychoDbAt */
+  var psyCs = hasPsy ? psyCoeffsFast(fs) : null; /* hoist: 1 lan/goi thay vi 2049 lan trong psychoDbAt; vòng tự động 09:54 hướng B: psyCoeffsFast thay psychoCoeffs (xem comment fingerprint phía trên) */
   /* (vong tu dong 04:24, huong B): loc san mang he so dang hoat dong MOT lan truoc vong k (2049 diem) — actCc/psyAct giu nguyen thu tu band/section goc nen day nhan lin giong tung bit; vong trong khong con kiem tra act[i]/PSY_ID va doc cc[i] theo chi so thưa. */
   var actCc=[], _ai;
   for (_ai=0;_ai<nB;_ai++) if (act[_ai]) actCc.push(cc[_ai]);
