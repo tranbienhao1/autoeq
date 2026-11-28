@@ -132,7 +132,16 @@ function aeParseMeasurement(text){
     if (!raw){ continue; }
     var first = raw.charAt(0);
     if (first==="*" || first==="#" || first===";"){ skipped++; continue; }
-    var toks = raw.split(/[,;\t ]+/).filter(function(x){ return x.length>0; });
+    /* (vòng tự động 13:45 nhóm D, bản đa file): viết lại vòng tách token trong aeParseMeasurement — trước đây mỗi dòng dựng mảng split(/[,;\t ]+/) rồi filter với closure dù chỉ cần 2 token đầu (f, v); nay quét thủ công theo tập delimiter {",", ";", "\t", " "}, chỉ thu tối đa 2 token khác rỗng đầu tiên (toks[0]/toks[1] và điều kiện toks.length>1 không đổi vì các token sau không ảnh hưởng), không bóc ngoặc kép/trim (giữ nguyên hành vi gốc của aeParseMeasurement, khác dbParseMeasurement) nên kết quả GIỐNG TỪNG BIT theo cấu trúc. Đối xứng với vá token-split ở dbParseMeasurement (03:35) và dbExtParseCsv (01:54). --- */
+    var toks = [];
+    var _ts = -1;
+    for (var _ci = 0; _ci <= raw.length && toks.length < 2; _ci++){
+      var _ch = _ci < raw.length ? raw.charAt(_ci) : "";
+      var _isDelim = (_ch === "," || _ch === ";" || _ch === "\t" || _ch === " ");
+      if (_isDelim || _ci === raw.length){
+        if (_ts >= 0){ toks.push(raw.slice(_ts, _ci)); _ts = -1; }
+      } else if (_ts < 0){ _ts = _ci; }
+    }
     var f = parseFloat(toks[0]), v = toks.length>1 ? parseFloat(toks[1]) : NaN;
     if (isFinite(f) && isFinite(v)){
       if (f>=10 && f<=24000 && v>-100 && v<200){ pts.push([f,v]); continue; }
