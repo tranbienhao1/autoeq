@@ -1731,7 +1731,8 @@ function pushConfig(){
 }
 function pushXCoeffs(){
   if (!workletNode || typeof psychoCoeffs!=="function") return;
-  workletNode.port.postMessage({ type:"xcoeffs", coeffs: psychoCoeffs(displayFs) });
+  /* (vòng tự động 11:24, hướng B — ÁP DỤNG, vá code): dùng psyCoeffsFast thay cho psychoCoeffs trong pushXCoeffs — psychoCoeffs dựng chuỗi khóa (nối chuỗi + join, ~0,66 µs/lần đo) mỗi lần gọi kể cả khi trúng cache PSY_CC, trong khi psyCoeffsFast so fingerprint trạng thái PSY bằng === từng trường và trả lại đúng mảng đã cache; mọi trường hợp khác rơi về psychoCoeffs gốc nguyên vẹn (kể cả NaN tự trượt fingerprint, cur chuẩn hoá, lỗi ném) nên hệ số gửi worklet GIỐNG TỪNG BIT theo cấu trúc. Điểm gọi này nằm trên đường updateAll (gọi cùng pushCoeffs/pushFir mỗi lần cập nhật UI) và chưa được phủ bởi fingerprint 08:24/09:54/10:24 (totalDbAt/gridTotalDb/buildFirTaps/qaActiveCoeffs). Lab Node trên hàm thật trích verbatim (hidden_files/run_20261128_1124_B/lab/, 2 lần bench độc lập): parity 126/126 GIỐNG TỪNG BIT (Object.is sâu trên hệ số + PSY_CC.key/v + chuẩn hoá PSY.loud.cur; gồm 8 cấu hình PSY × 9 fs, warm double-call, stale-key, mutate/replace cur, toggle, 40 fuzz, determinism, null-worklet); tốc độ warm paired-median xen kẽ 21 vòng: psyCoeffsFast vs psychoCoeffs lần 1 30,08x thắng 21/21, lần 2 31,21x thắng 21/21; pushXCoeffs lần 1 19,71x thắng 21/21, lần 2 19,29x thắng 21/21 — tiết kiệm ~0,64 µs/lần gọi hit. Khối đã vá trong file trích lại khớp bản lab. Không chạm solver/WASM/FIR/QA logic; aeV3 không đổi theo cấu trúc (không đo lại; gần nhất 468/482 ms ngày 2026-11-11). QA trình duyệt đầy đủ chưa chạy được trên VM (headless Chrome bị chặn Hatch WebGL). Lượt kế: nhóm C. */
+  workletNode.port.postMessage({ type:"xcoeffs", coeffs: (typeof psyCoeffsFast === "function") ? psyCoeffsFast(displayFs) : psychoCoeffs(displayFs) });
 }
 function dspLatencySamples(){
   var la = 128; /* limiter lookahead (brickwall TP limiter) */
