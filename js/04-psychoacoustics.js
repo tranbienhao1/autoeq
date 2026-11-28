@@ -7038,6 +7038,39 @@ function hrtfResample(x, from, to){
     }
     return out;
   }
+  if (ratio < 1){
+    /* (vòng tự động 10:33, hướng C): đường windowed-sinc cho upsample trong hrtfResample — trước đây upsample (ratio<1, vd 44,1k->48k khi nạp HRTF vào engine) dùng Catmull-Rom có đáp ứng tần số suy giảm mạnh gần Nyquist đầu vào (sai số RMS nội bộ ~6e-2 trên tín hiệu đa sin bandlimited đo trong lab lượt này); nay dùng cùng kỹ thuật sinc Blackman như đường downsample nhưng với tần số cắt cố định ở Nyquist đầu vào (0,5 chu kỳ/mẫu đầu vào), nửa-bề-rộng 32 mẫu đầu vào, chuẩn hoá theo tổng trọng số trong cửa sổ (bảo toàn DC tuyệt đối kể cả ở biên) và tổng bù Kahan cho hai bộ tích lũy như đường downsample. Đường downsample (ratio>1) và đường slice/tỉ lệ ~1 giữ nguyên từng ký tự nên kết quả cũ ở các dải đó giống từng bit; đường CR còn lại chỉ còn phục vụ ratio===1 (f===0, trả đúng x[i]). */
+    var _fcU = 0.5, _hwU = 32, _hwiU = Math.ceil(_hwU), _xcU = new Array(x.length), _aiU;
+    for (_aiU = 0; _aiU < x.length; _aiU++) _xcU[_aiU] = isFinite(x[_aiU]) ? x[_aiU] : 0;
+    var _kernCacheU = {};
+    for (i = 0; i < n; i++){
+      p = i * ratio;
+      var _ipU = Math.floor(p), _fracU = p - _ipU;
+      var _kernU = _kernCacheU[_fracU];
+      if (!_kernU){
+        _kernU = new Array(2 * _hwiU + 1);
+        for (var _mU = -_hwiU; _mU <= _hwiU; _mU++){
+          var _dU = _mU - _fracU, _uU = 2 * _fcU * _dU;
+          if (Math.abs(_dU) > _hwU){ _kernU[_mU + _hwiU] = 0; continue; }
+          var _sincU = _uU === 0 ? 1 : Math.sin(Math.PI * _uU) / (Math.PI * _uU);
+          var _tU = _dU / _hwU;
+          var _winU = 0.42 + 0.5 * Math.cos(Math.PI * _tU) + 0.08 * Math.cos(2 * Math.PI * _tU);
+          _kernU[_mU + _hwiU] = 2 * _fcU * _sincU * _winU;
+        }
+        _kernCacheU[_fracU] = _kernU;
+      }
+      var _m0U = Math.max(-_hwiU, Math.ceil(_fracU - _hwU), -_ipU), _m1U = Math.min(_hwiU, Math.floor(_fracU + _hwU), x.length - 1 - _ipU);
+      var _sU = 0, _wsumU = 0, _csU = 0, _cwU = 0;
+      for (var _mmU = _m0U; _mmU <= _m1U; _mmU++){
+        var _wkU = _kernU[_mmU + _hwiU];
+        var _yU = _wkU * _xcU[_ipU + _mmU];
+        if (isFinite(_sU) && isFinite(_yU)){ var _kyU = _yU - _csU; var _ktU = _sU + _kyU; _csU = (_ktU - _sU) - _kyU; _sU = _ktU; } else _sU += _yU;
+        if (isFinite(_wsumU) && isFinite(_wkU)){ var _kwU = _wkU - _cwU; var _ktwU = _wsumU + _kwU; _cwU = (_ktwU - _wsumU) - _kwU; _wsumU = _ktwU; } else _wsumU += _wkU;
+      }
+      out[i] = _wsumU !== 0 ? _sU / _wsumU : 0;
+    }
+    return out;
+  }
   if (xc){
     for (i = 0; i < n; i++){
       p = i * ratio; i0 = Math.floor(p); f = p - i0;
