@@ -411,7 +411,13 @@ function dbExtNormalizePoints(points){
     var why = dbExtPointWhy(pt, i);
     if (why) throw new Error(why);
   });
-  var pts = points.slice().sort(function(a, b){ return a[0] - b[0]; });
+  /* (vòng tự động 14:54 nhóm D, bản đa file): bỏ sort thừa khi điểm đã sắp tăng dần — dbExtParseCsv luôn trả điểm đã sắp và pack JSON thường đã sắp, nên sort ổn định (ES2019) trên mảng không giảm sẽ giữ nguyên thứ tự; nay quét một lượt kiểm tra tính đơn điệu (kèm kiểm tra lỗ thưa bằng `in` để mảng thưa rơi về đường sort gốc nguyên vẹn) và chỉ sort khi thật sự cần. Mọi giá trị đầu ra GIỐNG TỪNG BIT theo cấu trúc (điểm đã qua kiểm chứng hữu hạn nên comparator không bao giờ NaN; tần số bằng nhau giữ nguyên thứ tự tương đối như sort ổn định). Lab (hidden_files/run_20261128_1454_D/lab/, hàm trích verbatim + harness, 2 lần bench độc lập): parity 3048/3048 GIỐNG TỪNG BIT (đã sắp/chưa sắp/trùng tần số/cực đoan/mảng thưa/lỗi ném đúng loại+thông điệp/3000 fuzz/determinism); tốc độ paired-median xen kẽ 21 vòng — đường đã sắp lần 1 1,029–1,040× (thắng 17–19/21), lần 2 1,018–1,034× (thắng 16–18/21); đường chưa sắp trung tính ~1,00×. Không chạm solver/WASM/FIR/QA logic; aeV3 không đổi theo cấu trúc (không chạm solver; gần nhất 468/482 ms ngày 2026-11-11). QA trình duyệt đầy đủ chưa chạy được trên VM (headless Chrome bị chặn Hatch WebGL). Lượt kế: nhóm A. --- */
+  var pts = points.slice();
+  var _sorted = true;
+  for (var _si = 1; _si < pts.length; _si++){
+    if (!((_si - 1) in pts) || !(_si in pts) || pts[_si - 1][0] > pts[_si][0]){ _sorted = false; break; }
+  }
+  if (!_sorted) pts.sort(function(a, b){ return a[0] - b[0]; });
   if (!_dbGridLog){ _dbGridLog = []; for (var _gl = 0; _gl < DB_GRID.length; _gl++) _dbGridLog.push(Math.log(DB_GRID[_gl])); }
   var logPts = new Array(pts.length);
   function lg(i){ var v = logPts[i]; if (v === undefined){ v = Math.log(pts[i][0]); logPts[i] = v; } return v; }
