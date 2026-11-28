@@ -801,14 +801,27 @@ function upNormalizeRig(raw){
   if (s === "711" || s === "5128") return { code: s, label: s === "711" ? "IEC 60318-4 (711)" : "B&K 5128", confidence: "high", raw: String(raw || "") };
   return { code: "other", label: "Rig khác / chưa rõ", confidence: "low", raw: String(raw || "") };
 }
+/* (vòng tự động 11:34, hướng C — ÁP DỤNG, vá code): kiểm chứng lịch trong upExtractDate — trước đây nhánh ISO không kiểm tra tháng/ngày nào (2026-13-45, 2026-02-31, 2023-02-29 đều được trả về như ngày hợp lệ) và nhánh DD/MM chỉ kẹp 1-31 không theo tháng/năm nhuận (31/04, 29/02 năm không nhuận lọt qua); nay cả hai nhánh kiểm tra tháng 1-12 và ngày 1..số ngày trong tháng (năm nhuận: chia hết 4, trừ năm thế kỷ không chia hết 400) — ngày vô hiệu bị bỏ qua để tìm ngày hợp lệ tiếp theo trong chuỗi, không còn ngày nào thì trả null. Ngày hợp lệ cho kết quả giống từng bit với bản cũ (cùng biểu thức định dạng YYYY-MM-DD). Lab Node trên hàm thật trích verbatim (hidden_files/run_20261128_1134_C/lab/, 2 lần chạy độc lập cho kết quả y hệt): ngày hợp lệ 26/26 GIỐNG TỪNG BIT (gồm 29/02/2024, 29/02/2000, cuối tháng, 1/1/2026, chuỗi ISO kèm giờ); ngày vô hiệu 20 ca: bản cũ nhận 18/20 (chỉ 00/10 và 32/01 bị chặn bởi kẹp 1-31), bản mới loại 20/20; chuỗi hỗn hợp (ngày vô hiệu trước, ngày hợp lệ sau) 4/4 bản mới tìm đúng ngày hợp lệ; không có ngày 8/8 cả hai trả null; fuzz 20.000 ca ngẫu nhiên: bản mới không bao giờ trả ngày vô hiệu lịch, và khi bản cũ trả ngày hợp lệ thì bản mới khớp tuyệt đối; khẳng định ngày của upSelfCheck3 PASS cả hai bản. Không chạm solver/WASM/FIR/QA logic; aeV3 không đổi theo cấu trúc (không đo lại; gần nhất 468/482 ms ngày 2026-11-11). QA trình duyệt đầy đủ chưa chạy được trên VM (headless Chrome bị chặn Hatch WebGL). Lượt kế: nhóm D. */
 function upExtractDate(text){
   var s = String(text || "");
-  var m = s.match(/(20\d{2}|19\d{2})-(\d{2})-(\d{2})/);
-  if (m) return m[1] + "-" + m[2] + "-" + m[3];
-  var d = s.match(/(\d{1,2})\/(\d{1,2})\/(20\d{2}|19\d{2})/);
-  if (d){
-    var dd = ("0" + d[1]).slice(-2), mm = ("0" + d[2]).slice(-2);
-    if (parseInt(mm, 10) >= 1 && parseInt(mm, 10) <= 12 && parseInt(dd, 10) >= 1 && parseInt(dd, 10) <= 31) return d[3] + "-" + mm + "-" + dd;
+  function _daysInMonth(y, mo){
+    if (mo === 2) return ((y % 4 === 0 && (y % 100 !== 0 || y % 400 === 0)) ? 29 : 28);
+    return (mo === 4 || mo === 6 || mo === 9 || mo === 11) ? 30 : 31;
+  }
+  function _validYMD(y, mo, dd){
+    return mo >= 1 && mo <= 12 && dd >= 1 && dd <= _daysInMonth(y, mo);
+  }
+  var _reIso = /(20\d{2}|19\d{2})-(\d{2})-(\d{2})/g, _m;
+  while ((_m = _reIso.exec(s)) !== null){
+    if (_validYMD(parseInt(_m[1], 10), parseInt(_m[2], 10), parseInt(_m[3], 10))) return _m[1] + "-" + _m[2] + "-" + _m[3];
+  }
+  var _reDmy = /(\d{1,2})\/(\d{1,2})\/(20\d{2}|19\d{2})/g, _d;
+  while ((_d = _reDmy.exec(s)) !== null){
+    var _dd = parseInt(_d[1], 10), _mm = parseInt(_d[2], 10), _yy = parseInt(_d[3], 10);
+    if (_validYMD(_yy, _mm, _dd)){
+      var _dds = ("0" + _d[1]).slice(-2), _mms = ("0" + _d[2]).slice(-2);
+      return _d[3] + "-" + _mms + "-" + _dds;
+    }
   }
   return null;
 }
