@@ -9,6 +9,7 @@ function autoPickTarget(entry){
   }
   return "harmanOE";
 }
+var QA_GD_MAX_LAST = null; /* memo ket qua gan nhat cua qaGdMaxLowOnly (vong tu dong 13:29, huong B): chi dung lai khi fs/mode/firLen va danh sach object he so khong doi */
 function qaGdMaxLowOnly(){
   try {
     var fs = displayFs || 48000;
@@ -37,6 +38,7 @@ function qaGdMaxLowOnly(){
     if (grid.kMax !== undefined) kMax = grid.kMax;
     else { kMax = -1; for (var kk = 0; kk <= N; kk++){ if (freqs[kk] <= 100) kMax = kk; } grid.kMax = kMax; grid._kMaxOk = true; }
     if (mode === "fir"){
+      if (QA_GD_MAX_LAST && QA_GD_MAX_LAST.fir && QA_GD_MAX_LAST.fs === fs && QA_GD_MAX_LAST.firLen === firLen){ QA6.gdMaxLow = QA_GD_MAX_LAST.value; return; }
       var D = (firLen - 1)/2;
       var gdValF = D/fs*1000;
       if (grid._kMaxOk){
@@ -47,6 +49,7 @@ function qaGdMaxLowOnly(){
           if (freqs[kf] <= 100 && (QA6.gdMaxLow === null || gdValF > QA6.gdMaxLow)) QA6.gdMaxLow = gdValF;
         }
       }
+      QA_GD_MAX_LAST = { fir: true, fs: fs, firLen: firLen, value: QA6.gdMaxLow };
       return;
     }
     /* (vòng tự động 07:13, hướng B — ÁP DỤNG, vá code): cache kMax (chỉ số lưới cuối cùng có freqs<=100 Hz) vào grid.kMax — lưới freqs chỉ phụ thuộc N=240 cố định (không phụ thuộc fs) nên kMax không đổi theo lần gọi; trước đây mỗi lần gọi qaGdMaxLowOnly đều quét lại 241 điểm lưới chỉ để tìm kMax, nay tính MỘT lần rồi tái dùng (grid do qaPhaseGdData tạo cũng nhận thêm trường này an toàn vì caller đó chỉ đọc .freqs/.dw/.cw/.sw/.cw2/.sw2). Quét gốc giữ nguyên từng toán hạng/thứ tự nên kMax và mọi kết quả GIỐNG TỪNG BIT theo cấu trúc. Lab Node trên hàm thật trích verbatim (hidden_files/run_20261124_0710_B/, 2 lần bench độc lập): parity 15 kịch bản + warm-repeat + guard-like 30 bước + fuzz 200 GIỐNG TỪNG BIT; tốc độ warm-hit paired-median xen kẽ 15 vòng: lần 1 20 band 1,0321x thắng 13/15; lần 2 20 band 1,0698x thắng 13/15, 10 band 1,1195x thắng 14/15 (control old-vs-old 0,9944x). Ứng viên phụ gộp vòng unwrap+gd trong cùng hàm bị bác (10 band lần 2 chậm hơn 0,9590x, không ổn định) — KHÔNG thử lại hướng gộp vòng đó. Không chạm solver/WASM/FIR/QA logic; aeV3 không đổi theo cấu trúc (không đo lại; gần nhất 468/482 ms ngày 2026-11-11). QA trình duyệt đầy đủ chưa chạy được trên VM (headless Chrome bị chặn Hatch WebGL). Lượt kế: nhóm C. Lab: hidden_files/run_20261124_0710_B/. */
@@ -61,6 +64,12 @@ function qaGdMaxLowOnly(){
       return;
     }
     var coeffs = qaActiveCoeffs(fs);
+    /* (vòng tự động 13:29, hướng B — ÁP DỤNG, vá code): memoize kết quả qaGdMaxLowOnly theo lần gọi cuối (QA_GD_MAX_LAST) — qaGdMaxLowOnly chạy theo vòng guard và các lần vẽ lại tĩnh dù hệ số không đổi; nay nếu fs/mode/firLen và danh sách object hệ số (so sánh tham chiếu từng phần tử — bandCoeffs/psychoCoeffs giữ nguyên tham chiếu khi tham số không đổi, cùng giả định đã áp ở QA_PGD_LAST cho qaPhaseGdData) khớp lần gọi trước thì đặt lại QA6.gdMaxLow từ cache và trả về, bỏ vòng tra cache/cộng pha/unwrap/GD. Tính thuần xác định theo (hệ số, fs, mode, firLen): QA_PHASE_CACHE/QA_PHASE_LOW chỉ là memo của cùng phép tính nên kết quả dùng lại GIỐNG TỪNG BIT; fs=NaN tự trượt cache do ===; coeff null ném lỗi đúng như cũ qua qaActiveCoeffs trước khi kiểm tra cache (nằm trong try/catch như cũ); chỉ ghi cache khi tính xong không lỗi (cuối nhánh IIR và nhánh FIR), đường kMax<0/full giữ nguyên không memo. Lab Node trên hàm thật trích verbatim (hidden_files/run_20261128_1329_B/lab/, 2 lần bench độc lập): parity 72/72 GIỐNG TỪNG BIT cả 2 lần (Object.is trên gdMaxLow; gồm cold 0/1/3/10/20 band × fs 44100/48000/96000 × miss/hit, warm-repeat, drag 10 bước, FIR L255/1023/4097, fs 0/NaN/Infinity/âm, null coeff, cực đoan NaN/±Infinity/-0/1e308, fuzz 30); tốc độ paired-median xen kẽ 21 vòng: warm-repeat 20 band lần 1 10,309× thắng 21/21, lần 2 10,012× thắng 21/21; drag control trung tính 0,991×/0,999× thắng 10/21 (không hồi quy đường kéo node). Không chạm solver/WASM/FIR/QA logic; aeV3 không đổi theo cấu trúc (không đo lại; gần nhất 468/482 ms ngày 2026-11-11). QA trình duyệt đầy đủ chưa chạy được trên VM (headless Chrome bị chặn Hatch WebGL). Lượt kế: nhóm C. */
+    if (QA_GD_MAX_LAST && !QA_GD_MAX_LAST.fir && QA_GD_MAX_LAST.fs === fs && QA_GD_MAX_LAST.coeffs.length === coeffs.length){
+      var _gsame = true;
+      for (var _gi = 0; _gi < coeffs.length; _gi++) if (QA_GD_MAX_LAST.coeffs[_gi] !== coeffs[_gi]){ _gsame = false; break; }
+      if (_gsame){ QA6.gdMaxLow = QA_GD_MAX_LAST.value; return; }
+    }
     var K1 = kMax + 1, k, i;
     var bandPh = new Array(coeffs.length), missIdx = [], missKeys = [];
     for (i = 0; i < coeffs.length; i++){
@@ -145,6 +154,7 @@ function qaGdMaxLowOnly(){
       var gdVal = -(phU[k] - phU[_ga])/grid.dw[_gj]/fs*1000;
       if (freqs[_gj] <= 100 && (QA6.gdMaxLow === null || gdVal > QA6.gdMaxLow)) QA6.gdMaxLow = gdVal;
     }
+    QA_GD_MAX_LAST = { fir: false, fs: fs, coeffs: coeffs, value: QA6.gdMaxLow };
   } catch (e) {}
 }
 /* --- Mở rộng 2026-11-23 (vòng tự động 21:42, hướng B — ÁP DỤNG, vá code): Lượt nhóm B (sau A 21:24, ÁP DỤNG). File Drive tải về (fileId 1TAhnChBQPRlbsrMUOhq5ZF3tHWHGIvbi, sửa 21:33:56+07, 6.267.567 byte / 25.348 dòng (wc -l), md5 73b5993d67ca5602686de5009a2557a0, version 332) khớp từng byte bản cục bộ (cmp IDENTICAL) — không có thay đổi ngoài; backup pre-download/pre-B lưu tại ~/workspace/autoeq/backups/*2026-11-23_2137*. Ứng viên B duy nhất: thay kiểm tra tràn cache QA_PHASE_LOW trong qaGdMaxLowOnly bằng bộ đếm QA_PHASE_LOW_N — trước đây mỗi lần miss (đường 1 band trượt và đường nhiều band trượt) đều gọi Object.keys(QA_PHASE_LOW).length, cấp phát mảng khóa đầy đủ (tới >400 khóa trong phiên dài) chỉ để so sánh >400; nay biến mới QA_PHASE_LOW_N giữ đúng số khóa (tăng 1 khi gán khóa chưa tồn tại — kiểm tra === undefined trước khi gán, giữ nguyên hành vi ghi đè khóa đã có; reset 0 khi xóa toàn bộ cache tại đúng 2 điểm xóa cũ) và kiểm tra tràn chỉ là phép so sánh số nguyên; thứ tự kiểm tra/xóa/gán và mọi phép tính pha/GD giữ nguyên nên GIỐNG TỪNG BIT theo cấu trúc (kể cả xóa cache giữa vòng multi-miss, ghi đè khóa lệch độ dài, NaN/±Infinity/-0, coeff null ném đúng TypeError rồi bị catch như cũ). Lab Node trên hàm thật trích verbatim (extract.py + make_new.py + harness.js trong hidden_files/run_20261123_2137_B/, 2 lần bench độc lập): parity 16/16 kịch bản GIỐNG TỪNG BIT cả 2 lần (Object.is trên gdMaxLow + khóa/giá trị QA_PHASE_LOW/QA_PHASE_CACHE; gồm single/multi-miss ở cache 390/400/401 khóa, xóa cache giữa vòng, ghi đè khóa lệch độ dài, all-hit, lowPart-hit, rỗng, FIR, nhánh kMax, fs 44100, cực đoan, chuỗi guard 30 bước mới, coeff null) kèm invariant QA_PHASE_LOW_N == Object.keys(...).length sau mọi lần gọi; tốc độ paired-median xen kẽ 15 vòng: lần 1 multi-3 cache 390 1,3832x thắng 15/15, single-miss cache 390 1,1051x (nhiễu, thắng 8/15), cache nhỏ 10 khóa 1,0066x trung tính, all-hit 1,0062x trung tính; lần 2 multi-3 1,3999x thắng 15/15, single-miss 1,1278x thắng 14/15, cache nhỏ 0,9882x trung tính, all-hit 0,9981x trung tính — cải thiện ổn định trên đường miss khi cache lớn, không hồi quy đường hit/cache nhỏ. Không chạm solver/WASM/FIR/QA logic; aeV3 không đổi theo cấu trúc (không đo lại; gần nhất 468/482 ms ngày 2026-11-11). Bộ đếm lab-only vẫn 12. Lượt kế: nhóm C. Lab: hidden_files/run_20261123_2137_B/. --- */
