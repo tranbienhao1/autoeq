@@ -68,7 +68,12 @@ function aeInterp(pts, f){ /* pts: [[f,dB]...] đã sắp xếp; nội suy tuy�
   if (f >= pts[pts.length-1][0]) return pts[pts.length-1][1];
   var lo=0, hi=pts.length-1;
   while (hi-lo>1){ var m=(lo+hi)>>1; if (pts[m][0]<=f) lo=m; else hi=m; }
-  var t=(Math.log(f)-Math.log(pts[lo][0]))/(Math.log(pts[hi][0])-Math.log(pts[lo][0]));
+  /* (vòng tự động 13:07 nhóm D): nội suy log-tỉ lệ — t=log(f/f0)/log(f1/f0) thay cho (log f−log f0)/(log f1−log f0) vốn triệt tiêu catastrofe khi f gần nút lưới (log f, log f0 đều ~3–10, hiệu có thể ~1e-7); tỉ lệ tính chính xác tới 1 ulp rồi mới log. Mọi trường hợp khác (f/f0/f1 không dương, tỉ lệ tràn/không hữu hạn) rơi về biểu thức log-hiệu gốc. Đối xứng với vá log-tỉ lệ ở js/11 (v115, 03:24 hôm nay). Lab (hidden_files/run_20261128_1307_D/lab/, tham chiếu mpmath 50 chữ số, 4161 ca): sai số tối đa 1,51e-11 → 8,47e-13 dB (17,8×; bản mới tốt hơn 2646, tệ hơn 337, hòa 1178); biên: chỉ 2 ca lệch ≤3,3e-13 dB, còn lại giống từng bit hoặc trong 1e-11; tốc độ paired-median xen kẽ 21 vòng ×2 lần độc lập: 1,08–1,12× mọi workload (thắng 19–21/21, control old/old ~1,00×). aeInterp không nằm trong AE_WORKER_SRC nên parity Worker giữ nguyên; các đường nhanh tiền tính log (aeTargetCurve/aeDetectNulls/aeSamplePoints) giữ nguyên biểu thức log-hiệu — lệch tối đa ~1,6e-11 dB, trong mọi dung sai QA. Không chạm solver/WASM/FIR/QA logic; aeV3 không đổi theo cấu trúc (không đo lại; gần nhất 468/482 ms ngày 2026-11-11). QA trình duyệt đầy đủ chưa chạy được trên VM (headless Chrome bị chặn Hatch WebGL). Lượt kế: nhóm A. --- */
+  var _f0=pts[lo][0], _f1=pts[hi][0];
+  var _r0=f/_f0, _r1=_f1/_f0;
+  var t;
+  if (_f0>0 && _f1>0 && f>0 && isFinite(_r0) && _r0>0 && isFinite(_r1) && _r1>0) t=Math.log(_r0)/Math.log(_r1);
+  else t=(Math.log(f)-Math.log(_f0))/(Math.log(_f1)-Math.log(_f0));
   return pts[0+lo][1] + t*(pts[hi][1]-pts[lo][1]);
 }
 var _aeGridFreqsCache = null;
