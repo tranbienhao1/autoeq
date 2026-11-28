@@ -77,6 +77,9 @@ for (var _isoJ = 0; _isoJ < ISO_FREQS.length; _isoJ++){
   ISO_LOG_FREQS[_isoJ] = Math.log(ISO_FREQS[_isoJ]);
   if (_isoJ > 0) ISO_LOG_SPAN[_isoJ-1] = ISO_LOG_FREQS[_isoJ] - ISO_LOG_FREQS[_isoJ-1];
 }
+var ISO_LOG_SPAN_R = [];
+for (var _isoK = 0; _isoK < ISO_FREQS.length - 1; _isoK++) ISO_LOG_SPAN_R[_isoK] = Math.log(ISO_FREQS[_isoK+1]/ISO_FREQS[_isoK]);
+/* (vòng tự động 08:04, hướng C — ÁP DỤNG, vá code): nội suy log-tỉ lệ cho hệ số ft trong isoSpl và isoPhonFromSpl — trước đây ft=(log f − log f0)/(log f1 − log f0) triệt tiêu catastrofe khi f gần nút lưới (log f, log f0 đều ~3–9, hiệu ~1e-7 trở xuống); nay ft=log(f/f0)/ISO_LOG_SPAN_R[fi] với mẫu số tiền tính bằng đúng log(f1/f0) nên tại điểm lưới ft đúng tuyệt đối 0 (log 1 = 0) và 1 (tử = mẫu cùng toán hạng), các nhánh ft===0/ft===1 giữ nguyên; ISO_LOG_SPAN cũ giữ nguyên cho iso2003Spl (js/11) và LOUD_FIT_FT nên không lan truyền. Lab Node trên hàm thật trích verbatim (hidden_files/run_20261128_0754_C/lab/, extract.py + make_varD.py + harness.js/harnessD.js + refcheckC2.py mpmath 50 chữ số + bench3.js, 2 lần đo độc lập): sai số ft tối đa trên 3456 fixture (mỗi đoạn lưới, δ log-spaced 1e-15 quanh nút) 7,80e-15 → 6,00e-16 (13x; vùng gần f0 cải thiện 19x); parity điểm lưới 1073/1073 GIỐNG TỪNG BIT, anchor 20 Hz/1 kHz/isoCompDb giữ nguyên, khứ hồi isoPhonFromSpl max 6,39e-14 → 4,97e-14 phon, lệch tối đa trên lưới dày 5,7e-14 dB (mức ulp); tốc độ paired-median 25 vòng trung tính 1,00–1,02x mọi workload (isoSpl grid/440 Hz, isoCompDb, isoPhonFromSpl). Không chạm solver/WASM/FIR/QA logic; aeV3 không đổi theo cấu trúc (không đo lại; gần nhất 468/482 ms ngày 2026-11-11). QA trình duyệt đầy đủ chưa chạy được trên VM (headless Chrome bị chặn Hatch WebGL). Lượt kế: nhóm D. */
 function isoSplIdx(i, phon){
   var af = ISO_AF[i], lu = ISO_LU[i];
   var Af = ISO_POW_A[i]*(Math.pow(10, 0.03*phon) - ISO_POW_0072) + ISO_POW_B[i];
@@ -122,7 +125,7 @@ function isoSpl(phon, f){
   { var _lo = 0, _hi = ISO_FREQS.length - 1;
     while (_lo < _hi){ var _m = (_lo + _hi) >> 1; if (ISO_FREQS[_m] < f) _lo = _m + 1; else _hi = _m; }
     fi = _lo - 1; if (fi < 0) fi = 0; if (fi > ISO_FREQS.length - 2) fi = ISO_FREQS.length - 2; } /* (vòng tự động 11:51, hướng C — ÁP DỤNG, vá code): tìm nhị phân fi trên lưới ISO_FREQS 29 điểm thay vì quét tuyến tính — fi = (chỉ số đầu tiên có ISO_FREQS[idx] >= f) − 1, kẹp [0, len−2], cho đúng cùng fi với vòng while cũ (ISO_FREQS[fi+1] < f) ở mọi f đã kẹp [20, 12500] kể cả f trùng điểm lưới (ft===0/1 giữ nguyên); ft và mọi biểu thức sau đó không đổi nên kết quả giống từng bit. Áp dụng cho isoSpl, isoPhonFromSpl và iso2003Spl (cùng mẫu, cùng bảng). Lab Node trên hàm thật trích verbatim (extract.py + probe.js + probe2003.js + bench.js/bench2.js trong hidden_files/run_20261123_1151/, 2 lần chạy độc lập): parity 20.520/20.520 (isoSpl+isoPhonFromSpl) + 7.634/7.634 (iso2003Spl) GIỐNG TỪNG BIT (Object.is; gồm lưới 1/48-oct 20–12.500 Hz, 29 tần số ISO ± epsilon, biên kẹp/NaN/Infinity/cực đoan); khứ hồi max 4,26e-14 phon; tốc độ paired-median xen kẽ 15 vòng: isoSpl 1,46–1,71× thắng 14–15/15 cả 2 lần, isoPhonFromSpl tại tần số lưới 1,61–1,64× thắng 15/15, tại 440 Hz ~1,0–1,06× (chia đôi áp đảo, trung tính); không chạm solver/WASM/FIR/QA; aeV3 không đổi theo cấu trúc (không đo lại; gần nhất 468/482 ms ngày 2026-11-11). Bộ đếm lab-only vẫn 12. Lượt kế: nhóm D. */
-  var ft = (Math.log(f)-ISO_LOG_FREQS[fi])/ISO_LOG_SPAN[fi];
+  var ft = Math.log(f/ISO_FREQS[fi])/ISO_LOG_SPAN_R[fi];
   var X = Math.pow(10, 0.03*phon);
   if (ft === 0) return isoSplIdxX(fi, X);
   if (ft === 1) return isoSplIdxX(fi+1, X);
@@ -271,7 +274,7 @@ function isoPhonFromSpl(splDb, f){
   { var _lo = 0, _hi = ISO_FREQS.length - 1;
     while (_lo < _hi){ var _m = (_lo + _hi) >> 1; if (ISO_FREQS[_m] < f) _lo = _m + 1; else _hi = _m; }
     fi = _lo - 1; if (fi < 0) fi = 0; if (fi > ISO_FREQS.length - 2) fi = ISO_FREQS.length - 2; } /* (vòng tự động 11:51, hướng C — ÁP DỤNG, vá code): tìm nhị phân fi trên lưới ISO_FREQS 29 điểm thay vì quét tuyến tính — fi = (chỉ số đầu tiên có ISO_FREQS[idx] >= f) − 1, kẹp [0, len−2], cho đúng cùng fi với vòng while cũ (ISO_FREQS[fi+1] < f) ở mọi f đã kẹp [20, 12500] kể cả f trùng điểm lưới (ft===0/1 giữ nguyên); ft và mọi biểu thức sau đó không đổi nên kết quả giống từng bit. Áp dụng cho isoSpl, isoPhonFromSpl và iso2003Spl (cùng mẫu, cùng bảng). Lab Node trên hàm thật trích verbatim (extract.py + probe.js + probe2003.js + bench.js/bench2.js trong hidden_files/run_20261123_1151/, 2 lần chạy độc lập): parity 20.520/20.520 (isoSpl+isoPhonFromSpl) + 7.634/7.634 (iso2003Spl) GIỐNG TỪNG BIT (Object.is; gồm lưới 1/48-oct 20–12.500 Hz, 29 tần số ISO ± epsilon, biên kẹp/NaN/Infinity/cực đoan); khứ hồi max 4,26e-14 phon; tốc độ paired-median xen kẽ 15 vòng: isoSpl 1,46–1,71× thắng 14–15/15 cả 2 lần, isoPhonFromSpl tại tần số lưới 1,61–1,64× thắng 15/15, tại 440 Hz ~1,0–1,06× (chia đôi áp đảo, trung tính); không chạm solver/WASM/FIR/QA; aeV3 không đổi theo cấu trúc (không đo lại; gần nhất 468/482 ms ngày 2026-11-11). Bộ đếm lab-only vẫn 12. Lượt kế: nhóm D. */
-  var ft = (Math.log(f)-ISO_LOG_FREQS[fi])/ISO_LOG_SPAN[fi];
+  var ft = Math.log(f/ISO_FREQS[fi])/ISO_LOG_SPAN_R[fi];
   if (ft === 0) return isoPhonIdx(fi, splDb);
   if (ft === 1) return isoPhonIdx(fi+1, splDb);
   var af0 = ISO_AF[fi], af1 = ISO_AF[fi+1], lu0 = ISO_LU[fi], lu1 = ISO_LU[fi+1];
