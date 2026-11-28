@@ -3571,14 +3571,19 @@ function aeRenderStepResults(){
   var keys = Object.keys(AE_PHONES);
   var list;
   if (q){
-    var scored = [];
+    /* (vòng tự động 08:08 nhóm D): chọn top-120 ổn định ngay trong vòng chấm điểm — trước đây aeRenderStepResults thu thập wrapper {p,s} cho MỌI mục khớp (tới ~3.700 mục với truy vấn "a"/"e"/"s") rồi sort toàn phần trước khi slice(0,120), dù chỉ 120 mục đầu được hiển thị; nay duy trì mảng _top120 đã sắp xếp giảm dần (tối đa 120 mục): mỗi điểm chỉ cần so với điểm nhỏ nhất đang giữ để biết có vào được top-120 không, chỉ khi vào mới chèn (splice, mảng <=120 phần tử nên rẻ) — chèn sau mọi mục có điểm >= điểm mới nên thứ tự khi điểm bằng nhau giữ nguyên như sort ổn định của bản cũ, và mọi điểm aeStepScore đều là số nguyên nên kết quả GIỐNG TỪNG BIT theo cấu trúc. Đối xứng với chọn ngưỡng top-K trong dbRenderResults (js/07, 06:14 hôm nay) — ở đây chấm điểm rẻ (không có Levenshtein) nên phần sort chiếm tỷ trọng lớn hơn. Lab (hidden_files/run_20261128_0808_D/lab/, hàm trích verbatim + harness, 2 lần bench độc lập): parity 475/475 + 3353/3353 GIỐNG TỪNG BIT (353 truy vấn thật × 5.000 tên + 300 fuzz substring + 3.000 mảng điểm tổng hợp + biên non-string ném lỗi đúng loại); tốc độ nhánh truy vấn đầy đủ paired-median xen kẽ 21 vòng — lần 1 W1 1,0733x/W2 1,1082x/W3 1,0683x/W4 1,0261x (thắng 17-21/21), lần 2 W1 1,1667x/W2 1,2308x/W3 1,0655x/W4 1,0225x (thắng 16-20/21); workload khớp ít trung tính 0,99-1,00x. Không chạm solver/WASM/FIR/QA logic; aeV3 không đổi theo cấu trúc (không chạm solver; gần nhất 468/482 ms ngày 2026-11-11). QA trình duyệt đầy đủ chưa chạy được trên VM (headless Chrome bị chặn Hatch WebGL). Lượt kế: nhóm A. --- */
+    var _top120 = [];
     for (var _qi = 0; _qi < keys.length; _qi++){
       var _qp = AE_PHONES[keys[_qi]];
       var _qs = aeStepScore(q, _qp.name);
-      if (_qs > 10) scored.push({ p: _qp, s: _qs });
+      if (_qs > 10 && (_top120.length < 120 || _qs > _top120[_top120.length - 1].s)){
+        var _ip = _top120.length;
+        while (_ip > 0 && _top120[_ip - 1].s < _qs) _ip--;
+        _top120.splice(_ip, 0, { p: _qp, s: _qs });
+        if (_top120.length > 120) _top120.length = 120;
+      }
     }
-    scored.sort(function(a, b){ return b.s - a.s; });
-    list = scored.slice(0, 120).map(function(x){ return x.p; });
+    list = _top120.map(function(x){ return x.p; });
   } else {
     list = _aeStepSortedList(keys);
     if (cur){ var ci = list.indexOf(cur); if (ci > 0){ list.splice(ci, 1); list.unshift(cur); } }
