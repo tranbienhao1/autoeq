@@ -6456,7 +6456,7 @@ function hrtfSelectDirection(dirs, az, el){
 }
 function hrtfSanitizeDir(d){
   if (!d || typeof d !== "object") return null;
-  var az = parseFloat(d.azimuth); if (!isFinite(az)) az = 0; az = Math.max(-180, Math.min(180, az));
+  var az = parseFloat(d.azimuth); if (!isFinite(az)) az = 0; if (az > 180 || az < -180){ var _r = az % 360; if (_r > 180) _r -= 360; else if (_r < -180) _r += 360; az = _r + 0; } /* (vong tu dong 15:54, huong C): wrap azimuth ve [-180,180] thay vi kep clamp trong hrtfSanitizeDir - azimuth JSON theo chuan 0-360 (vd 270) bi kep thanh 180 (sai 90 do) thay vi -90 dung huong vat ly; moi gia tri trong [-180,180] giu nguyen tung bit (nhanh if khong chay), chi cac gia tri ngoai mien duoc chuan hoa bang fmod chinh xac IEEE (az % 360) roi hieu chinh mot lan ve [-180,180], +0 chuan hoa -0 thanh +0. */
   var el = parseFloat(d.elevation); if (!isFinite(el)) el = 0; el = Math.max(-90, Math.min(90, el));
   function clean(arr){
     if (!Array.isArray(arr)) return null;
